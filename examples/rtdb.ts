@@ -1,0 +1,44 @@
+import { genkit } from "genkit";
+import { retry } from "genkit/model/middleware";
+import { googleAI } from "@genkit-ai/google-genai";
+import { quota, RTDBQuotaStore } from "../src/index.js";
+import * as admin from "firebase-admin";
+
+const ai = genkit({
+  plugins: [googleAI()],
+});
+
+// Ensure FIREBASE_CONFIG or credentials are set
+if (!admin.apps.length) {
+    admin.initializeApp();
+}
+const db = admin.database();
+const quotaStore = new RTDBQuotaStore(db, "quotas");
+
+const myFlow = ai.defineFlow("myFlow", async (input) => {
+  const response = await ai.generate({
+    model: "googleai/gemini-2.5-flash",
+    prompt: input,
+    use: [
+      retry({ initialDelayMs: 20000, maxRetries: 5, onError: console.log }),
+      quota({
+        store: quotaStore,
+        limit: 5,
+        windowMs: 60000,
+        key: "example-key",
+      }),
+    ],
+  });
+  return response.text;
+});
+
+(async () => {
+  try {
+    console.log("Running flow...");
+    console.log(await myFlow("Hello world"));
+  } catch (e) {
+    console.error("Error:", e);
+  } finally {
+    await admin.app().delete();
+  }
+})();

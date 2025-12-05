@@ -1,0 +1,6 @@
+node_modules
+lib
+ref
+database-debug.log
+firestore-debug.log
+examples/.firebaserc
