@@ -24,7 +24,7 @@ import { quota } from "../src/quota/middleware.js";
 import { InMemoryQuotaStore } from "../src/quota/memory.js";
 import { genkit, GenkitError } from "genkit";
 import { defineEchoModel } from "./helpers.js";
-import { QuotaStore } from "../src/index.js";
+import { QuotaStore } from "../src/quota/index.js";
 
 describe("Quota Middleware Integration", () => {
   let ai: ReturnType<typeof genkit>;
@@ -98,7 +98,7 @@ describe("Quota Middleware Integration", () => {
       store,
       limit: 1,
       windowMs: 1000,
-      key: (req: any) => req.messages[0]?.content[0]?.text || "default",
+      key: ({ request }: any) => request.messages[0]?.content[0]?.text || "default",
     });
 
     await ai.generate({ model: "echoModel", prompt: "user1", use: [q] });
@@ -112,8 +112,8 @@ describe("Quota Middleware Integration", () => {
     ).rejects.toThrow();
   });
 
-  it("should not block if enforce is false", async () => {
-    const q = quota({ store, limit: 1, windowMs: 1000, enforce: false });
+  it("should not block if logOnly is true", async () => {
+    const q = quota({ store, limit: 1, windowMs: 1000, logOnly: true });
     const consoleSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
 
     await ai.generate({ model: "echoModel", prompt: "1", use: [q] });
@@ -188,8 +188,8 @@ describe("Quota Middleware Integration", () => {
       store,
       limit: 1,
       windowMs: 1000,
-      key: (req: any) =>
-        req.messages[0]?.content[0]?.metadata?.userId || "anon",
+      key: ({ request }: any) =>
+        request.messages[0]?.content[0]?.metadata?.userId || "anon",
     });
 
     await ai.generate({

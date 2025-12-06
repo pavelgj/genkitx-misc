@@ -1,7 +1,8 @@
 import { genkit } from "genkit";
 import { retry } from "genkit/model/middleware";
 import { googleAI } from "@genkit-ai/google-genai";
-import { quota, RTDBQuotaStore } from "../src/index.js";
+import { quota } from "../src/quota/index.js";
+import { RTDBQuotaStore } from "../src/quota/rtdb.js";
 import * as admin from "firebase-admin";
 
 const ai = genkit({

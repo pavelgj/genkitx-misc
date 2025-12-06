@@ -28,12 +28,12 @@ export function quota(options: QuotaOptions): ModelMiddleware {
     limit,
     windowMs,
     key = 'global',
-    enforce = true,
+    logOnly = false,
     failOpen = false,
   } = options;
 
   return async (req, next) => {
-    const k = typeof key === 'function' ? key(req) : key;
+    const k = typeof key === 'function' ? key({ request: req }) : key;
     
     try {
       const usage = await store.increment(k, 1, windowMs, limit);
@@ -41,7 +41,7 @@ export function quota(options: QuotaOptions): ModelMiddleware {
       if (usage > limit) {
         const msg = `Quota exceeded for key '${k}'. Usage: ${usage}/${limit} in ${windowMs}ms`;
         
-        if (enforce) {
+        if (!logOnly) {
           throw new GenkitError({
             status: 'RESOURCE_EXHAUSTED',
             message: msg,

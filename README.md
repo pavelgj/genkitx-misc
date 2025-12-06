@@ -16,7 +16,7 @@ bun add genkitx-misc
 
 ### Optional Dependencies
 
-This package has peer dependencies that are required only for specific features:
+This package has optional dependencies that are required only for specific features:
 
 -   **Firestore Quota Store**: Requires `@google-cloud/firestore`.
 -   **Realtime Database Quota Store**: Requires `firebase-admin`.
@@ -36,7 +36,8 @@ A flexible rate-limiting middleware for Genkit models.
 
 ```typescript
 import { genkit } from 'genkit';
-import { quota, FirestoreQuotaStore } from 'genkitx-misc';
+import { quota } from 'genkitx-misc/quota';
+import { FirestoreQuotaStore } from 'genkitx-misc/quota/firestore';
 import { Firestore } from '@google-cloud/firestore';
 
 const ai = genkit({ plugins: [/* ... */] });

@@ -47,13 +47,13 @@ export interface QuotaOptions {
    * Key to use for the quota. Can be a static string or a function derived from the request.
    * Defaults to 'global'.
    */
-  key?: string | ((req: GenerateRequest) => string);
+  key?: string | ((args: { request: GenerateRequest }) => string);
 
   /**
-   * Whether to enforce the quota (throw error) or just monitor (log warning).
-   * Defaults to true.
+   * If true, only logs a warning when quota is exceeded, instead of throwing an error.
+   * Defaults to false.
    */
-  enforce?: boolean;
+  logOnly?: boolean;
 
   /**
    * Whether to allow the request to proceed if the quota check fails (e.g. storage down).

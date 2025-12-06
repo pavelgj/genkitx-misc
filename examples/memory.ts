@@ -1,7 +1,8 @@
 import { genkit } from "genkit";
 import { retry } from "genkit/model/middleware";
 import { googleAI } from "@genkit-ai/google-genai";
-import { quota, InMemoryQuotaStore } from "../src/index.js";
+import { quota } from "../src/quota/index.js";
+import { InMemoryQuotaStore } from "../src/quota/memory.js";
 
 const ai = genkit({
   plugins: [googleAI()],

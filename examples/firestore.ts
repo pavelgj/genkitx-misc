@@ -1,7 +1,8 @@
 import { genkit } from "genkit";
 import { retry } from "genkit/model/middleware";
 import { googleAI } from "@genkit-ai/google-genai";
-import { quota, FirestoreQuotaStore } from "../src/index.js";
+import { quota } from "../src/quota/index.js";
+import { FirestoreQuotaStore } from "../src/quota/firestore.js";
 import { Firestore } from "@google-cloud/firestore";
 
 const ai = genkit({

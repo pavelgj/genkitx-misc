@@ -10,7 +10,7 @@ The `quota` function accepts the following options:
 -   `limit`: The maximum number of requests allowed within the window.
 -   `windowMs`: The duration of the window in milliseconds.
 -   `key`: (Optional) A string or a function to generate a unique key for the quota. Defaults to `'global'`.
--   `enforce`: (Optional) If `true` (default), throws an error when quota is exceeded. If `false`, logs a warning only.
+-   `logOnly`: (Optional) If `true`, logs a warning when quota is exceeded instead of throwing an error. Defaults to `false`.
 -   `failOpen`: (Optional) If `true`, allows the request to proceed if the storage backend fails (e.g., database down). If `false` (default), throws an internal error.
 
 ## Per-User Quota
@@ -22,7 +22,7 @@ quota({
   store: myStore,
   limit: 5,
   windowMs: 60000,
-  key: (req) => {
+  key: ({ request }) => {
     // Example: Extract user ID from request messages or config
     // Note: Ensure your flow/application passes this data to the model
     return context.auth.userId || 'anon';
@@ -37,7 +37,7 @@ quota({
 Uses Cloud Firestore for distributed, durable rate limiting. Requires `@google-cloud/firestore`.
 
 ```typescript
-import { FirestoreQuotaStore } from 'genkitx-misc';
+import { FirestoreQuotaStore } from 'genkitx-misc/quota/firestore';
 import { Firestore } from '@google-cloud/firestore';
 
 const firestore = new Firestore();
@@ -49,7 +49,7 @@ const store = new FirestoreQuotaStore(firestore, 'quotas_collection');
 Uses Firebase Realtime Database for low-latency rate limiting. Requires `firebase-admin`.
 
 ```typescript
-import { RTDBQuotaStore } from 'genkitx-misc';
+import { RTDBQuotaStore } from 'genkitx-misc/quota/rtdb';
 import * as admin from 'firebase-admin';
 
 const db = admin.database();
@@ -63,7 +63,7 @@ Keys are automatically sanitized to replace invalid characters (e.g., `.`, `/`) 
 Uses an in-memory map. Useful for testing or single-instance deployments (not shared across instances).
 
 ```typescript
-import { InMemoryQuotaStore } from 'genkitx-misc';
+import { InMemoryQuotaStore } from 'genkitx-misc/quota/memory';
 
 const store = new InMemoryQuotaStore();
 ```
@@ -81,14 +81,14 @@ quota({
 })
 ```
 
-Note: If `enforce` is `true`, and the store successfully reports that the limit is exceeded, the request will be blocked regardless of `failOpen` setting. `failOpen` only applies to storage errors.
+Note: Unless `logOnly` is `true`, if the store successfully reports that the limit is exceeded, the request will be blocked regardless of `failOpen` setting. `failOpen` only applies to storage errors.
 
 ## Custom Quota Store
 
 You can implement your own storage backend by implementing the `QuotaStore` interface.
 
 ```typescript
-import { QuotaStore } from 'genkitx-misc';
+import { QuotaStore } from 'genkitx-misc/quota';
 
 export class MyCustomStore implements QuotaStore {
   async increment(key: string, delta: number, windowMs: number, limit?: number): Promise<number> {

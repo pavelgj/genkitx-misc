@@ -15,6 +15,46 @@
       "require": "./lib/index.js",
       "import": "./lib/index.mjs",
       "default": "./lib/index.js"
+    },
+    "./quota": {
+      "types": "./lib/quota/index.d.ts",
+      "require": "./lib/quota/index.js",
+      "import": "./lib/quota/index.mjs",
+      "default": "./lib/quota/index.js"
+    },
+    "./quota/firestore": {
+      "types": "./lib/quota/firestore.d.ts",
+      "require": "./lib/quota/firestore.js",
+      "import": "./lib/quota/firestore.mjs",
+      "default": "./lib/quota/firestore.js"
+    },
+    "./quota/rtdb": {
+      "types": "./lib/quota/rtdb.d.ts",
+      "require": "./lib/quota/rtdb.js",
+      "import": "./lib/quota/rtdb.mjs",
+      "default": "./lib/quota/rtdb.js"
+    },
+    "./quota/memory": {
+      "types": "./lib/quota/memory.d.ts",
+      "require": "./lib/quota/memory.js",
+      "import": "./lib/quota/memory.mjs",
+      "default": "./lib/quota/memory.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "quota": [
+        "lib/quota/index.d.ts"
+      ],
+      "quota/firestore": [
+        "lib/quota/firestore.d.ts"
+      ],
+      "quota/rtdb": [
+        "lib/quota/rtdb.d.ts"
+      ],
+      "quota/memory": [
+        "lib/quota/memory.d.ts"
+      ]
     }
   },
   "files": [
@@ -33,7 +73,13 @@
     "firebase-admin": "^13.6.0",
     "genkit": "^1.25.0"
   },
+  "optionalDependencies": {
+    "@google-cloud/firestore": "^8.0.0",
+    "firebase-admin": "^13.6.0"
+  },
   "devDependencies": {
+    "@google-cloud/firestore": "^8.0.0",
+    "firebase-admin": "^13.6.0",
     "@jest/globals": "^30.2.0",
     "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
