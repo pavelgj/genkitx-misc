@@ -21,6 +21,7 @@ This package has optional dependencies that are required only for specific featu
 -   **Firestore Quota Store**: Requires `@google-cloud/firestore`.
 -   **Realtime Database Quota Store**: Requires `firebase-admin`.
 -   **PostgreSQL Quota Store**: Requires `pg`.
+-   **Redis Quota Store**: Requires `ioredis`.
 
 ## Features
 
@@ -28,7 +29,7 @@ This package has optional dependencies that are required only for specific featu
 
 A flexible rate-limiting middleware for Genkit models.
 
--   **Pluggable Storage**: Supports Firestore, Realtime Database, PostgreSQL, and In-Memory storage.
+-   **Pluggable Storage**: Supports Firestore, Realtime Database, PostgreSQL, Redis, and In-Memory storage.
 -   **Configurable**: Set limits, window size, and custom keys (e.g., per-user).
 -   **Fail-Safe**: Configurable behavior when storage is unavailable (fail open or closed).
 -   **Optimized**: Minimizes database writes when limits are exceeded.

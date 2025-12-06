@@ -4,3 +4,4 @@ ref
 database-debug.log
 firestore-debug.log
 examples/.firebaserc
+firebase-debug.log

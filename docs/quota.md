@@ -87,6 +87,18 @@ CREATE TABLE IF NOT EXISTS quotas (
 );
 ```
 
+### Redis
+
+Uses Redis for high-performance distributed rate limiting. Requires `ioredis`.
+
+```typescript
+import { RedisQuotaStore } from 'genkitx-misc/quota/redis';
+import Redis from 'ioredis';
+
+const redis = new Redis(); // or new Redis('redis://...')
+const store = new RedisQuotaStore({ client: redis });
+```
+
 ### In-Memory
 
 Uses an in-memory map. Useful for testing or single-instance deployments (not shared across instances).
