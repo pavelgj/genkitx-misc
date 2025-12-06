@@ -58,6 +58,35 @@ const store = new RTDBQuotaStore(db, 'quotas_path');
 
 Keys are automatically sanitized to replace invalid characters (e.g., `.`, `/`) with `_`.
 
+### PostgreSQL
+
+Uses a PostgreSQL database table for rate limiting. Requires `pg`.
+
+```typescript
+import { PostgresQuotaStore } from 'genkitx-misc/quota/postgres';
+import { Pool } from 'pg';
+
+const pool = new Pool({
+  connectionString: 'postgresql://user:password@localhost:5432/mydb'
+});
+
+// Options:
+// - pool: pg.Pool instance
+// - tableName: (Optional) Table name, default 'quotas'
+// - noCreate: (Optional) If true, skips automatic table creation. Default false.
+const store = new PostgresQuotaStore({ pool, tableName: 'my_quotas' });
+```
+
+The store will automatically attempt to create the table if it doesn't exist (unless `noCreate` is true). The schema used is:
+
+```sql
+CREATE TABLE IF NOT EXISTS quotas (
+  key TEXT PRIMARY KEY,
+  count INTEGER NOT NULL,
+  expires_at BIGINT NOT NULL
+);
+```
+
 ### In-Memory
 
 Uses an in-memory map. Useful for testing or single-instance deployments (not shared across instances).

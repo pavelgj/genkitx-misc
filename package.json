@@ -34,6 +34,12 @@
       "import": "./lib/quota/rtdb.mjs",
       "default": "./lib/quota/rtdb.js"
     },
+    "./quota/postgres": {
+      "types": "./lib/quota/postgres.d.ts",
+      "require": "./lib/quota/postgres.js",
+      "import": "./lib/quota/postgres.mjs",
+      "default": "./lib/quota/postgres.js"
+    },
     "./quota/memory": {
       "types": "./lib/quota/memory.d.ts",
       "require": "./lib/quota/memory.js",
@@ -51,6 +57,9 @@
       ],
       "quota/rtdb": [
         "lib/quota/rtdb.d.ts"
+      ],
+      "quota/postgres": [
+        "lib/quota/postgres.d.ts"
       ],
       "quota/memory": [
         "lib/quota/memory.d.ts"
@@ -75,17 +84,20 @@
   },
   "optionalDependencies": {
     "@google-cloud/firestore": "^8.0.0",
-    "firebase-admin": "^13.6.0"
+    "firebase-admin": "^13.6.0",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
+    "@genkit-ai/google-genai": "^1.25.0",
     "@google-cloud/firestore": "^8.0.0",
-    "firebase-admin": "^13.6.0",
     "@jest/globals": "^30.2.0",
     "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
+    "@types/pg": "^8.15.6",
+    "firebase-admin": "^13.6.0",
     "jest": "^29.0.0",
-    "@genkit-ai/google-genai": "^1.25.0",
     "npm-run-all": "^4.1.5",
+    "pg-mem": "^3.0.5",
     "rimraf": "^6.0.0",
     "ts-jest": "^29.0.0",
     "tsup": "^8.0.0",
