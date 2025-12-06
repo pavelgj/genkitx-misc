@@ -8,7 +8,18 @@ Miscellaneous middleware and utilities for [Genkit](https://genkit.dev).
 npm install genkitx-misc
 # or
 pnpm add genkitx-misc
+# or
+yarn add genkitx-misc
+# or
+bun add genkitx-misc
 ```
+
+### Optional Dependencies
+
+This package has peer dependencies that are required only for specific features:
+
+-   **Firestore Quota Store**: Requires `@google-cloud/firestore`.
+-   **Realtime Database Quota Store**: Requires `firebase-admin`.
 
 ## Features
 
