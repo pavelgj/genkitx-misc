@@ -1,6 +1,6 @@
 {
   "name": "genkitx-misc",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Miscellaneous Genkit middleware and utilities",
   "repository": {
     "type": "git",
