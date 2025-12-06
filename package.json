@@ -4,7 +4,7 @@
   "description": "Miscellaneous Genkit middleware and utilities",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pavelgj/genkitx-misc.git",
+    "url": "https://github.com/pavelgj/genkitx-misc.git"
   },
   "license": "Apache-2.0",
   "main": "./lib/index.js",
