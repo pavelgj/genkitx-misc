@@ -81,10 +81,19 @@
       "require": "./lib/cache/postgres.js",
       "import": "./lib/cache/postgres.mjs",
       "default": "./lib/cache/postgres.js"
+    },
+    "./router": {
+      "types": "./lib/router/index.d.ts",
+      "require": "./lib/router/index.js",
+      "import": "./lib/router/index.mjs",
+      "default": "./lib/router/index.js"
     }
   },
   "typesVersions": {
     "*": {
+      "router": [
+        "lib/router/index.d.ts"
+      ],
       "quota": [
         "lib/quota/index.d.ts"
       ],
@@ -129,7 +138,8 @@
     "build:clean": "rimraf ./lib",
     "build": "npm-run-all build:clean check compile",
     "build:watch": "tsup --watch",
-    "test": "firebase emulators:exec 'jest --verbose' --config tests/emulator/firebase.json"
+    "test": "firebase emulators:exec 'jest --verbose' --config tests/emulator/firebase.json",
+    "format": "prettier --write ."
   },
   "peerDependencies": {
     "@google-cloud/firestore": "^8.0.0",
@@ -154,6 +164,7 @@
     "jest": "^29.0.0",
     "npm-run-all": "^4.1.5",
     "pg-mem": "^3.0.5",
+    "prettier": "^3.7.4",
     "rimraf": "^6.0.0",
     "ts-jest": "^29.0.0",
     "tsup": "^8.0.0",

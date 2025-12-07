@@ -84,8 +84,37 @@ const myFlow = ai.defineFlow('myFlow', async (input) => {
 });
 ```
 
+### Router Middleware
+
+A middleware that routes requests to different models based on configurable rules or classification strategies.
+
+-   **Rule-Based**: Define prioritized rules (e.g. "if has media, use this model").
+-   **Classifier-Based**: Use a function (or LLM) to classify requests and route accordingly.
+-   **Built-in Predicates**: Helpers for common checks like `hasMedia`, `hasTools`.
+
+[📚 Read Router Documentation](docs/router.md)
+
+#### Example
+
+```typescript
+import { router, hasMedia, hasTools } from 'genkitx-misc/router';
+
+ai.generate({
+  model: 'googleai/gemini-2.5-flash', // Default
+  use: [
+    router(ai, {
+      rules: [
+        { when: hasMedia, use: 'googleai/gemini-2.5-flash' },
+        { when: hasTools, use: 'googleai/gemini-2.5-pro' },
+      ]
+    })
+  ]
+});
+```
+
 ## Examples
 
 Check the `examples/` directory for complete sample projects:
 -   [Quota Examples](examples/quota/)
 -   [Cache Examples](examples/cache/)
+-   [Router Examples](examples/router/)
