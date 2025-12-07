@@ -24,9 +24,9 @@ describe('Redis Cache Store', () => {
 
   it('should expire keys', async () => {
     await store.set('key2', 'value', 200);
-    
-    await new Promise(r => setTimeout(r, 300));
-    
+
+    await new Promise((r) => setTimeout(r, 300));
+
     const val = await store.get('key2');
     expect(val).toBeNull();
   });

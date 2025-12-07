@@ -1,9 +1,9 @@
-import { genkit } from "genkit";
-import { retry } from "genkit/model/middleware";
-import { googleAI } from "@genkit-ai/google-genai";
-import { quota } from "../../src/quota/index.js";
-import { RTDBQuotaStore } from "../../src/quota/rtdb.js";
-import * as admin from "firebase-admin";
+import { genkit } from 'genkit';
+import { retry } from 'genkit/model/middleware';
+import { googleAI } from '@genkit-ai/google-genai';
+import { quota } from '../../src/quota/index.js';
+import { RTDBQuotaStore } from '../../src/quota/rtdb.js';
+import * as admin from 'firebase-admin';
 
 const ai = genkit({
   plugins: [googleAI()],
@@ -11,14 +11,14 @@ const ai = genkit({
 
 // Ensure FIREBASE_CONFIG or credentials are set
 if (!admin.apps.length) {
-    admin.initializeApp();
+  admin.initializeApp();
 }
 const db = admin.database();
-const quotaStore = new RTDBQuotaStore(db, "quotas");
+const quotaStore = new RTDBQuotaStore(db, 'quotas');
 
-const myFlow = ai.defineFlow("myFlow", async (input) => {
+const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
-    model: "googleai/gemini-2.5-flash",
+    model: 'googleai/gemini-2.5-flash',
     prompt: input,
     use: [
       retry({ initialDelayMs: 20000, maxRetries: 5, onError: console.log }),
@@ -26,7 +26,7 @@ const myFlow = ai.defineFlow("myFlow", async (input) => {
         store: quotaStore,
         limit: 5,
         windowMs: 60000,
-        key: "example-key",
+        key: 'example-key',
       }),
     ],
   });
@@ -35,10 +35,10 @@ const myFlow = ai.defineFlow("myFlow", async (input) => {
 
 (async () => {
   try {
-    console.log("Running flow...");
-    console.log(await myFlow("Hello world"));
+    console.log('Running flow...');
+    console.log(await myFlow('Hello world'));
   } catch (e) {
-    console.error("Error:", e);
+    console.error('Error:', e);
   } finally {
     await admin.app().delete();
   }

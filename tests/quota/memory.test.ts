@@ -22,7 +22,7 @@ describe('InMemory Quota Store', () => {
     store = new InMemoryQuotaStore();
     jest.useFakeTimers();
   });
-  
+
   afterEach(() => {
     jest.useRealTimers();
   });
@@ -30,16 +30,16 @@ describe('InMemory Quota Store', () => {
   it('should increment and return new value', async () => {
     const val = await store.increment('key1', 1, 1000);
     expect(val).toBe(1);
-    
+
     const val2 = await store.increment('key1', 1, 1000);
     expect(val2).toBe(2);
   });
 
   it('should reset after window expires', async () => {
     await store.increment('key2', 5, 1000);
-    
+
     jest.advanceTimersByTime(1001);
-    
+
     const val = await store.increment('key2', 1, 1000);
     expect(val).toBe(1);
   });

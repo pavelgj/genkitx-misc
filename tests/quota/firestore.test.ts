@@ -29,7 +29,7 @@ describeRun('Firestore Quota Store', () => {
     firestore = new Firestore({
       projectId: 'test-project',
       host: emulatorHost,
-      ssl: false
+      ssl: false,
     });
     // Use random collection for isolation
     const randomCol = `quotas-${Date.now()}-${Math.random()}`;
@@ -39,42 +39,42 @@ describeRun('Firestore Quota Store', () => {
   it('should increment and return new value', async () => {
     const val = await store.increment('key1', 1, 1000);
     expect(val).toBe(1);
-    
+
     const val2 = await store.increment('key1', 1, 1000);
     expect(val2).toBe(2);
   });
 
   it('should reset after window expires', async () => {
     await store.increment('key2', 5, 200); // 200ms window
-    
+
     // Wait for window to expire
-    await new Promise(r => setTimeout(r, 300));
-    
+    await new Promise((r) => setTimeout(r, 300));
+
     // Next increment should reset
     const val = await store.increment('key2', 1, 200);
     expect(val).toBe(1);
   });
 
   it('should not extend window on subsequent increments', async () => {
-      // Start window
-      await store.increment('key3', 1, 1000);
-      
-      // Get expiration from raw doc (using private access or creating another instance)
-      // We can access collection name from our variable
-      const colName = (store as any).collection;
-      const docRef = firestore.collection(colName).doc('key3');
-      
-      const doc1 = await docRef.get();
-      const expiresAt1 = doc1.data()?.expiresAt;
-      
-      await new Promise(r => setTimeout(r, 50));
-      
-      await store.increment('key3', 1, 1000);
-      
-      const doc2 = await docRef.get();
-      const expiresAt2 = doc2.data()?.expiresAt;
-      
-      expect(expiresAt1).toBeDefined();
-      expect(expiresAt1).toBe(expiresAt2);
+    // Start window
+    await store.increment('key3', 1, 1000);
+
+    // Get expiration from raw doc (using private access or creating another instance)
+    // We can access collection name from our variable
+    const colName = (store as any).collection;
+    const docRef = firestore.collection(colName).doc('key3');
+
+    const doc1 = await docRef.get();
+    const expiresAt1 = doc1.data()?.expiresAt;
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    await store.increment('key3', 1, 1000);
+
+    const doc2 = await docRef.get();
+    const expiresAt2 = doc2.data()?.expiresAt;
+
+    expect(expiresAt1).toBeDefined();
+    expect(expiresAt1).toBe(expiresAt2);
   });
 });

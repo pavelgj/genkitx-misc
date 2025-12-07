@@ -25,21 +25,21 @@ export class InMemoryQuotaStore implements QuotaStore {
   async increment(key: string, delta: number, windowMs: number, limit?: number): Promise<number> {
     const now = Date.now();
     let data = this.store.get(key);
-    
+
     if (!data || data.expiresAt <= now) {
       data = {
         count: 0,
-        expiresAt: now + windowMs
+        expiresAt: now + windowMs,
       };
     }
-    
+
     if (limit !== undefined && data.count >= limit) {
       return data.count + delta;
     }
 
     data.count += delta;
     this.store.set(key, data);
-    
+
     return data.count;
   }
 }

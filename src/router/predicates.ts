@@ -12,15 +12,13 @@
  * limitations under the License.
  */
 
-import { RouterInput } from "./types.js";
+import { RouterInput } from './types.js';
 
 /**
  * Checks if the request contains any media (images, video, audio).
  */
 export function hasMedia(input: RouterInput): boolean {
-  return input.request.messages.some((message) =>
-    message.content.some((part) => !!part.media)
-  );
+  return input.request.messages.some((message) => message.content.some((part) => !!part.media));
 }
 
 /**

@@ -48,7 +48,7 @@ export class PostgresQuotaStore implements QuotaStore {
 
   private async ensureTable() {
     if (this.initialized || this.noCreate) return;
-    
+
     // Simple sanitization to avoid SQL injection on table name
     // In a real scenario, user should provide a safe table name
     if (!/^[a-zA-Z0-9_]+$/.test(this.tableName)) {
@@ -62,7 +62,7 @@ export class PostgresQuotaStore implements QuotaStore {
         expires_at BIGINT NOT NULL
       );
     `;
-    
+
     await this.pool.query(query);
     this.initialized = true;
   }
@@ -72,7 +72,7 @@ export class PostgresQuotaStore implements QuotaStore {
 
     const now = Date.now();
     const newExpiresAt = now + windowMs;
-    
+
     const query = `
       INSERT INTO ${this.tableName} (key, count, expires_at)
       VALUES ($1, $2, $3)
@@ -90,7 +90,7 @@ export class PostgresQuotaStore implements QuotaStore {
     `;
 
     const values = [key, delta, newExpiresAt, now];
-    
+
     const result = await this.pool.query(query, values);
     return result.rows[0].count;
   }

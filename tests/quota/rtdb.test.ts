@@ -29,11 +29,11 @@ describeRun('RTDB Quota Store', () => {
     if (!admin.apps.length) {
       admin.initializeApp({
         projectId: 'test-project',
-        databaseURL: `http://${emulatorHost}/?ns=test-ns`
+        databaseURL: `http://${emulatorHost}/?ns=test-ns`,
       });
     }
     db = admin.database();
-    
+
     // Use timestamp-based path for isolation
     const randomPath = `quotas/${Date.now()}_${Math.random().toString(36).substring(7)}`;
     store = new RTDBQuotaStore(db, randomPath);
@@ -42,29 +42,29 @@ describeRun('RTDB Quota Store', () => {
   it('should increment and return new value', async () => {
     const val = await store.increment('key1', 1, 1000);
     expect(val).toBe(1);
-    
+
     const val2 = await store.increment('key1', 1, 1000);
     expect(val2).toBe(2);
   });
 
   it('should reset after window expires', async () => {
-    await store.increment('key2', 5, 200); 
-    
-    await new Promise(r => setTimeout(r, 300));
-    
+    await store.increment('key2', 5, 200);
+
+    await new Promise((r) => setTimeout(r, 300));
+
     const val = await store.increment('key2', 1, 200);
     expect(val).toBe(1);
   });
-  
+
   it('should sanitize keys', async () => {
-      const badKey = 'user/123.456';
-      const val = await store.increment(badKey, 1, 1000);
-      expect(val).toBe(1);
-      
-      const safeKey = badKey.replace(/[.#$\/\[\]]/g, '_');
-      const ref = db.ref(`${(store as any).rootPath}/${safeKey}`);
-      const snap = await ref.once('value');
-      expect(snap.exists()).toBe(true);
-      expect(snap.val().count).toBe(1);
+    const badKey = 'user/123.456';
+    const val = await store.increment(badKey, 1, 1000);
+    expect(val).toBe(1);
+
+    const safeKey = badKey.replace(/[.#$\/\[\]]/g, '_');
+    const ref = db.ref(`${(store as any).rootPath}/${safeKey}`);
+    const snap = await ref.once('value');
+    expect(snap.exists()).toBe(true);
+    expect(snap.val().count).toBe(1);
   });
 });

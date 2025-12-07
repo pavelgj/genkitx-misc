@@ -12,14 +12,9 @@
  * limitations under the License.
  */
 
-import { Genkit, GenkitError } from "genkit";
-import {
-  ModelMiddleware,
-  ModelArgument,
-  ModelAction,
-  ModelReference,
-} from "genkit/model";
-import { RouterOptions } from "./types.js";
+import { Genkit, GenkitError } from 'genkit';
+import { ModelMiddleware, ModelArgument, ModelAction, ModelReference } from 'genkit/model';
+import { RouterOptions } from './types.js';
 
 /**
  * Creates a router middleware that routes requests to different models based on rules or classification.
@@ -69,7 +64,7 @@ export function router(ai: Genkit, options: RouterOptions): ModelMiddleware {
         }
       } catch (e) {
         throw new GenkitError({
-          status: "INTERNAL",
+          status: 'INTERNAL',
           message: `Router failed to resolve model '${JSON.stringify(
             targetModel
           )}': ${e instanceof Error ? e.message : String(e)}`,
@@ -83,17 +78,14 @@ export function router(ai: Genkit, options: RouterOptions): ModelMiddleware {
   };
 }
 
-async function resolveModel(
-  ai: Genkit,
-  model: ModelArgument
-): Promise<ModelAction> {
+async function resolveModel(ai: Genkit, model: ModelArgument): Promise<ModelAction> {
   let out: ModelAction;
   let modelId: string;
 
-  if (typeof model === "string") {
+  if (typeof model === 'string') {
     modelId = model;
     out = await lookupModel(ai, model);
-  } else if (model.hasOwnProperty("__action")) {
+  } else if (model.hasOwnProperty('__action')) {
     modelId = (model as ModelAction).__action.name;
     out = model as ModelAction;
   } else {
@@ -104,7 +96,7 @@ async function resolveModel(
 
   if (!out) {
     throw new GenkitError({
-      status: "NOT_FOUND",
+      status: 'NOT_FOUND',
       message: `Model '${modelId}' not found`,
     });
   }

@@ -47,14 +47,12 @@ You can write your own condition functions. A condition is a function that takes
 ```typescript
 const isLongContext = (req) => {
   // Example: check token count or character length
-  return req.messages.some(m => m.content.some(p => p.text && p.text.length > 10000));
+  return req.messages.some((m) => m.content.some((p) => p.text && p.text.length > 10000));
 };
 
 router(ai, {
-  rules: [
-    { when: isLongContext, use: 'googleai/gemini-2.5-pro' }
-  ]
-})
+  rules: [{ when: isLongContext, use: 'googleai/gemini-2.5-pro' }],
+});
 ```
 
 ### Classification-Based Routing
@@ -66,13 +64,13 @@ router(ai, {
   classifier: async (req) => {
     // Your logic to classify request
     // e.g., call a small model to classify as 'simple' or 'complex'
-    return 'simple'; 
+    return 'simple';
   },
   models: {
     simple: 'googleai/gemini-2.5-flash',
     complex: 'googleai/gemini-2.5-pro',
-  }
-})
+  },
+});
 ```
 
 ## API Reference
@@ -81,23 +79,23 @@ router(ai, {
 
 Creates the middleware.
 
--   `ai`: The Genkit instance.
--   `options`: Configuration object.
+- `ai`: The Genkit instance.
+- `options`: Configuration object.
 
 ### `RouterOptions`
 
--   `rules`: An array of `RoutingRule` objects.
-    -   `when`: `(input: RouterInput) => boolean | Promise<boolean>`
-    -   `use`: The model to use if `when` returns true.
--   `classifier`: `(input: RouterInput) => string | Promise<string>`
--   `models`: `Record<string, ModelArgument>` - Map of keys returned by classifier to models.
+- `rules`: An array of `RoutingRule` objects.
+  - `when`: `(input: RouterInput) => boolean | Promise<boolean>`
+  - `use`: The model to use if `when` returns true.
+- `classifier`: `(input: RouterInput) => string | Promise<string>`
+- `models`: `Record<string, ModelArgument>` - Map of keys returned by classifier to models.
 
 ### `RouterInput`
 
--   `request`: The `GenerateRequest` object.
+- `request`: The `GenerateRequest` object.
 
 ### Helper Predicates
 
--   `hasMedia(input)`: Returns `true` if any message contains media parts.
--   `hasTools(input)`: Returns `true` if the request defines any tools.
--   `hasHistory(input)`: Returns `true` if the conversation has more than one message.
+- `hasMedia(input)`: Returns `true` if any message contains media parts.
+- `hasTools(input)`: Returns `true` if the request defines any tools.
+- `hasHistory(input)`: Returns `true` if the conversation has more than one message.

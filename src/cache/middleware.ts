@@ -12,9 +12,9 @@
  * limitations under the License.
  */
 
-import { createHash } from "crypto";
-import { ModelMiddleware } from "genkit/model";
-import { CacheOptions } from "./types.js";
+import { createHash } from 'crypto';
+import { ModelMiddleware } from 'genkit/model';
+import { CacheOptions } from './types.js';
 
 /**
  * Creates a cache middleware that caches model responses.
@@ -29,7 +29,7 @@ export function cache(options: CacheOptions): ModelMiddleware {
     let cacheKey: string;
 
     if (key) {
-      if (typeof key === "function") {
+      if (typeof key === 'function') {
         cacheKey = key({ request: req });
       } else {
         cacheKey = key;
@@ -42,9 +42,7 @@ export function cache(options: CacheOptions): ModelMiddleware {
         tools: req.tools,
         output: req.output,
       };
-      cacheKey = createHash("sha256")
-        .update(JSON.stringify(stableReq))
-        .digest("hex");
+      cacheKey = createHash('sha256').update(JSON.stringify(stableReq)).digest('hex');
     }
 
     try {
@@ -53,10 +51,7 @@ export function cache(options: CacheOptions): ModelMiddleware {
         return cached;
       }
     } catch (e) {
-      console.error(
-        `[Genkit Cache Error] Failed to read cache for '${cacheKey}':`,
-        e
-      );
+      console.error(`[Genkit Cache Error] Failed to read cache for '${cacheKey}':`, e);
     }
 
     const response = await next(req);
@@ -64,10 +59,7 @@ export function cache(options: CacheOptions): ModelMiddleware {
     try {
       await store.set(cacheKey, response, ttlMs);
     } catch (e) {
-      console.error(
-        `[Genkit Cache Error] Failed to write cache for '${cacheKey}':`,
-        e
-      );
+      console.error(`[Genkit Cache Error] Failed to write cache for '${cacheKey}':`, e);
     }
 
     return response;

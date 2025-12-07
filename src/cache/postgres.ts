@@ -48,7 +48,7 @@ export class PostgresCacheStore implements CacheStore {
 
   private async ensureTable() {
     if (this.initialized || this.noCreate) return;
-    
+
     if (!/^[a-zA-Z0-9_]+$/.test(this.tableName)) {
       throw new Error(`Invalid table name: ${this.tableName}`);
     }
@@ -60,37 +60,41 @@ export class PostgresCacheStore implements CacheStore {
         expires_at BIGINT NOT NULL
       );
     `;
-    
+
     await this.pool.query(query);
     this.initialized = true;
   }
 
   async get(key: string): Promise<any | null> {
     await this.ensureTable();
-    
+
     const query = `SELECT value, expires_at FROM ${this.tableName} WHERE key = $1`;
     const result = await this.pool.query(query, [key]);
-    
+
     if (result.rows.length === 0) {
       return null;
     }
-    
+
     const row = result.rows[0];
     // pg returns BIGINT as string
     if (BigInt(row.expires_at) < BigInt(Date.now())) {
-       // Lazy cleanup
-       this.pool.query(`DELETE FROM ${this.tableName} WHERE key = $1`, [key]).catch(e => console.error(`[PostgresCacheStore] Failed to delete expired key '${key}':`, e));
-       return null;
+      // Lazy cleanup
+      this.pool
+        .query(`DELETE FROM ${this.tableName} WHERE key = $1`, [key])
+        .catch((e) =>
+          console.error(`[PostgresCacheStore] Failed to delete expired key '${key}':`, e)
+        );
+      return null;
     }
-    
+
     return row.value;
   }
 
   async set(key: string, value: any, ttlMs: number): Promise<void> {
     await this.ensureTable();
-    
+
     const expiresAt = Date.now() + ttlMs;
-    
+
     const query = `
       INSERT INTO ${this.tableName} (key, value, expires_at)
       VALUES ($1, $2, $3)
@@ -99,7 +103,7 @@ export class PostgresCacheStore implements CacheStore {
         value = $2,
         expires_at = $3
     `;
-    
+
     // pg driver handles object serialization for JSONB columns, but for primitives (strings)
     // we need to stringify them so they are treated as JSON strings, not invalid JSON tokens.
     // Explicit stringify works for objects too (pg sees string and passes it).

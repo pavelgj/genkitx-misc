@@ -23,21 +23,21 @@ describe('Postgres Quota Store', () => {
   beforeEach(() => {
     db = newDb();
     // pg-mem supports ON CONFLICT from v1.8+
-    
+
     // Create a pool-like object from pg-mem
     const { Pool } = db.adapters.createPg();
     const pool = new Pool();
-    
+
     store = new PostgresQuotaStore({ pool });
   });
-  
+
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
   it('should create table if it does not exist', async () => {
     await store.increment('key1', 1, 1000);
-    
+
     // Check if table exists
     const result = db.public.many(`SELECT * FROM quotas`);
     expect(result).toHaveLength(1);
@@ -55,7 +55,7 @@ describe('Postgres Quota Store', () => {
   it('should increment and return new value', async () => {
     const val = await store.increment('key1', 1, 1000);
     expect(val).toBe(1);
-    
+
     const val2 = await store.increment('key1', 1, 1000);
     expect(val2).toBe(2);
 
@@ -68,10 +68,10 @@ describe('Postgres Quota Store', () => {
     jest.spyOn(Date, 'now').mockReturnValue(now);
 
     await store.increment('key2', 5, 1000);
-    
+
     // Advance time
     jest.spyOn(Date, 'now').mockReturnValue(now + 1001);
-    
+
     const val = await store.increment('key2', 1, 1000);
     expect(val).toBe(1);
 
@@ -82,13 +82,13 @@ describe('Postgres Quota Store', () => {
   it('should increment past limit', async () => {
     // Increment to limit (3)
     await store.increment('key3', 3, 1000);
-    
+
     // Try to increment again with limit=3
     // It should increment to 4, which allows the middleware to detect the breach
     const val = await store.increment('key3', 1, 1000, 3);
-    
+
     expect(val).toBe(4);
-    
+
     const result = db.public.many(`SELECT * FROM quotas WHERE key = 'key3'`);
     expect(result[0].count).toBe(4);
   });

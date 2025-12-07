@@ -33,7 +33,10 @@ export class RedisQuotaStore implements QuotaStore {
 
   constructor(options: RedisQuotaOptions) {
     // Check if client is already a Redis instance (or mock)
-    if (options.client instanceof Redis || (typeof options.client === 'object' && typeof options.client.eval === 'function')) {
+    if (
+      options.client instanceof Redis ||
+      (typeof options.client === 'object' && typeof options.client.eval === 'function')
+    ) {
       this.client = options.client;
     } else {
       this.client = new Redis(options.client);
@@ -43,7 +46,7 @@ export class RedisQuotaStore implements QuotaStore {
 
   async increment(key: string, delta: number, windowMs: number, limit?: number): Promise<number> {
     const redisKey = this.prefix + key;
-    
+
     // Lua script to ensure atomicity
     // ARGV[1]: windowMs
     // ARGV[2]: limit (string "nil" if undefined, or number)
@@ -69,11 +72,11 @@ export class RedisQuotaStore implements QuotaStore {
     `;
 
     const result = await this.client.eval(
-      script, 
-      1, 
-      redisKey, 
-      windowMs, 
-      limit === undefined ? 'nil' : limit, 
+      script,
+      1,
+      redisKey,
+      windowMs,
+      limit === undefined ? 'nil' : limit,
       delta
     );
 

@@ -23,20 +23,20 @@ export class FirestoreQuotaStore implements QuotaStore {
 
   async increment(key: string, delta: number, windowMs: number, limit?: number): Promise<number> {
     const docRef = this.firestore.collection(this.collection).doc(key);
-    
+
     return this.firestore.runTransaction(async (t) => {
       const doc = await t.get(docRef);
       const now = Date.now();
-      
+
       let usage = 0;
       let expiresAt = now + windowMs;
-      
+
       if (doc.exists) {
         const data = doc.data();
         // Check if window expired
         if (data && data.expiresAt && data.expiresAt > now) {
           // Window active
-          usage = (data.count || 0);
+          usage = data.count || 0;
           expiresAt = data.expiresAt;
         } else {
           // Window expired, reset
@@ -49,15 +49,15 @@ export class FirestoreQuotaStore implements QuotaStore {
       if (limit !== undefined && usage >= limit) {
         return usage + delta;
       }
-      
+
       usage += delta;
-      
+
       t.set(docRef, {
         count: usage,
         expiresAt: expiresAt,
-        lastUpdated: now
+        lastUpdated: now,
       });
-      
+
       return usage;
     });
   }

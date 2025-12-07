@@ -32,7 +32,10 @@ export class RedisCacheStore implements CacheStore {
   private prefix: string;
 
   constructor(options: RedisCacheOptions) {
-    if (options.client instanceof Redis || (typeof options.client === 'object' && typeof options.client.eval === 'function')) {
+    if (
+      options.client instanceof Redis ||
+      (typeof options.client === 'object' && typeof options.client.eval === 'function')
+    ) {
       this.client = options.client;
     } else {
       this.client = new Redis(options.client);
@@ -54,11 +57,6 @@ export class RedisCacheStore implements CacheStore {
   }
 
   async set(key: string, value: any, ttlMs: number): Promise<void> {
-    await this.client.set(
-      this.prefix + key, 
-      JSON.stringify(value), 
-      'PX', 
-      ttlMs
-    );
+    await this.client.set(this.prefix + key, JSON.stringify(value), 'PX', ttlMs);
   }
 }

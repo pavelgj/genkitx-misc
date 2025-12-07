@@ -12,25 +12,23 @@
  * limitations under the License.
  */
 
-import { Genkit } from "genkit";
-import { ModelAction } from "genkit/model";
+import { Genkit } from 'genkit';
+import { ModelAction } from 'genkit/model';
 
 export function defineEchoModel(ai: Genkit): ModelAction {
   return ai.defineModel(
     {
-      name: "echoModel",
+      name: 'echoModel',
     },
     async (request) => {
       return {
         message: {
-          role: "model",
+          role: 'model',
           content: [
             {
               text:
-                "Echo: " +
-                request.messages
-                  .map((m) => m.content.map((c) => c.text).join(""))
-                  .join(", "),
+                'Echo: ' +
+                request.messages.map((m) => m.content.map((c) => c.text).join('')).join(', '),
             },
           ],
         },

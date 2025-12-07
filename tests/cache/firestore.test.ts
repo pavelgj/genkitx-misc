@@ -13,7 +13,7 @@ describeRun('Firestore Cache Store', () => {
     firestore = new Firestore({
       projectId: 'test-project',
       host: emulatorHost,
-      ssl: false
+      ssl: false,
     });
     const randomCol = `cache-${Date.now()}-${Math.random()}`;
     store = new FirestoreCacheStore(firestore, randomCol);
@@ -32,9 +32,9 @@ describeRun('Firestore Cache Store', () => {
 
   it('should expire keys', async () => {
     await store.set('key2', 'value', 200);
-    
-    await new Promise(r => setTimeout(r, 300));
-    
+
+    await new Promise((r) => setTimeout(r, 300));
+
     const val = await store.get('key2');
     expect(val).toBeNull();
   });
@@ -44,9 +44,9 @@ describeRun('Firestore Cache Store', () => {
       candidates: [
         {
           finishMessage: undefined,
-          valid: 'value'
-        }
-      ]
+          valid: 'value',
+        },
+      ],
     };
     await store.set('key-undefined', data, 1000);
     const val = await store.get('key-undefined');

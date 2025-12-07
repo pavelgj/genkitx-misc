@@ -12,47 +12,47 @@
  * limitations under the License.
  */
 
-import { genkit, z } from "genkit";
-import { googleAI } from "@genkit-ai/google-genai";
-import { router } from "../../src/router/index.js";
+import { genkit, z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
+import { router } from '../../src/router/index.js';
 
 const ai = genkit({
   plugins: [googleAI()],
 });
 
 // Define a helper flow for classification to keep things clean
-const classifierFlow = ai.defineFlow("classifier", async (text: string) => {
+const classifierFlow = ai.defineFlow('classifier', async (text: string) => {
   const result = await ai.generate({
-    model: "googleai/gemini-2.5-flash-lite", // Use lightweight model for routing
+    model: 'googleai/gemini-2.5-flash-lite', // Use lightweight model for routing
     prompt: `Classify the following prompt as either "simple" (math, greeting, short question) or "complex" (coding, creative writing, reasoning).\n\nPrompt: ${text}\n\nClassification:`,
     output: {
-      format: "enum",
-      schema: z.enum(["simple", "complex"]),
+      format: 'enum',
+      schema: z.enum(['simple', 'complex']),
     },
   });
   return result.output;
 });
 
-const myFlow = ai.defineFlow("myFlow", async (input) => {
+const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
-    model: "googleai/gemini-2.5-flash",
+    model: 'googleai/gemini-2.5-flash',
     prompt: input,
     use: [
       router(ai, {
         classifier: async (input) => {
           // Extract text from request
           const text = input.request.messages
-            .map((m) => m.content.map((c) => c.text).join(""))
-            .join("\n");
+            .map((m) => m.content.map((c) => c.text).join(''))
+            .join('\n');
 
           // Call the classifier flow (or direct generate)
           // Note: In a real scenario, you might want to handle errors gracefully or use a fallback
           const classification = await classifierFlow(text);
-          return classification || "simple";
+          return classification || 'simple';
         },
         models: {
-          simple: "googleai/gemini-2.5-flash",
-          complex: "googleai/gemini-2.5-pro",
+          simple: 'googleai/gemini-2.5-flash',
+          complex: 'googleai/gemini-2.5-pro',
         },
       }),
     ],
@@ -62,10 +62,10 @@ const myFlow = ai.defineFlow("myFlow", async (input) => {
 
 (async () => {
   try {
-    console.log("Running flow...");
-    console.log(await myFlow("What is 2+2?"));
-    console.log(await myFlow("Write a poem about the singularity."));
+    console.log('Running flow...');
+    console.log(await myFlow('What is 2+2?'));
+    console.log(await myFlow('Write a poem about the singularity.'));
   } catch (e) {
-    console.error("Error:", e);
+    console.error('Error:', e);
   }
 })();

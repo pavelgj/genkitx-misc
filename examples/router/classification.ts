@@ -12,30 +12,30 @@
  * limitations under the License.
  */
 
-import { genkit } from "genkit";
-import { googleAI } from "@genkit-ai/google-genai";
-import { router } from "../../src/router/index.js";
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
+import { router } from '../../src/router/index.js';
 
 const ai = genkit({
   plugins: [googleAI()],
 });
 
-const myFlow = ai.defineFlow("myFlow", async (input) => {
+const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
-    model: "googleai/gemini-2.5-flash",
+    model: 'googleai/gemini-2.5-flash',
     prompt: input,
     use: [
       router(ai, {
         classifier: async (input) => {
           // Simple heuristic: long prompts -> complex
           const text = input.request.messages
-            .map((m) => m.content.map((c) => c.text).join(""))
-            .join("");
-          return text.length > 100 ? "complex" : "simple";
+            .map((m) => m.content.map((c) => c.text).join(''))
+            .join('');
+          return text.length > 100 ? 'complex' : 'simple';
         },
         models: {
-          simple: "googleai/gemini-2.5-flash",
-          complex: "googleai/gemini-2.5-pro",
+          simple: 'googleai/gemini-2.5-flash',
+          complex: 'googleai/gemini-2.5-pro',
         },
       }),
     ],
@@ -45,14 +45,14 @@ const myFlow = ai.defineFlow("myFlow", async (input) => {
 
 (async () => {
   try {
-    console.log("Running flow...");
-    console.log(await myFlow("Short prompt"));
+    console.log('Running flow...');
+    console.log(await myFlow('Short prompt'));
     console.log(
       await myFlow(
-        "This is a much longer prompt that should trigger the complex classifier rule because it exceeds the length threshold we set in the classifier function."
+        'This is a much longer prompt that should trigger the complex classifier rule because it exceeds the length threshold we set in the classifier function.'
       )
     );
   } catch (e) {
-    console.error("Error:", e);
+    console.error('Error:', e);
   }
 })();

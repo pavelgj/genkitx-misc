@@ -12,25 +12,25 @@
  * limitations under the License.
  */
 
-import { genkit, z } from "genkit";
-import { googleAI } from "@genkit-ai/google-genai";
-import { router, hasMedia, hasTools } from "../../src/router/index.js";
+import { genkit, z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
+import { router, hasMedia, hasTools } from '../../src/router/index.js';
 
 const ai = genkit({
   plugins: [googleAI()],
 });
 
-const myFlow = ai.defineFlow("myFlow", async (input) => {
+const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
-    model: "googleai/gemini-2.5-flash", // Default fallback
+    model: 'googleai/gemini-2.5-flash', // Default fallback
     prompt: input,
     use: [
       router(ai, {
         rules: [
           // Use Pro model for requests with media
-          { when: hasMedia, use: "googleai/gemini-2.5-pro" },
+          { when: hasMedia, use: 'googleai/gemini-2.5-pro' },
           // Use Pro model for requests with tools
-          { when: hasTools, use: "googleai/gemini-2.5-pro" },
+          { when: hasTools, use: 'googleai/gemini-2.5-pro' },
         ],
       }),
     ],
@@ -40,18 +40,18 @@ const myFlow = ai.defineFlow("myFlow", async (input) => {
 
 (async () => {
   try {
-    console.log("Running flow...");
-    console.log(await myFlow("Hello world"));
+    console.log('Running flow...');
+    console.log(await myFlow('Hello world'));
     console.log(
       await myFlow([
         {
           media: {
-            url: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg/1280px-Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg",
+            url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg/1280px-Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg',
           },
         },
       ])
     );
   } catch (e) {
-    console.error("Error:", e);
+    console.error('Error:', e);
   }
 })();

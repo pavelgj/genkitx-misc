@@ -3,7 +3,7 @@ import { PostgresCacheStore } from '../../src/cache/postgres.js';
 import { newDb } from 'pg-mem';
 
 describe('Postgres Cache Store', () => {
-  let pool: any; 
+  let pool: any;
   let store: PostgresCacheStore;
 
   beforeEach(async () => {
@@ -26,9 +26,9 @@ describe('Postgres Cache Store', () => {
 
   it('should expire keys', async () => {
     await store.set('key2', 'value', 200);
-    
-    await new Promise(r => setTimeout(r, 300));
-    
+
+    await new Promise((r) => setTimeout(r, 300));
+
     const val = await store.get('key2');
     expect(val).toBeNull();
   });

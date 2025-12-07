@@ -25,7 +25,7 @@ export interface RoutingRule {
    * Condition to check against the request.
    */
   when: RoutingCondition;
-  
+
   /**
    * Model to use if the condition is met.
    */

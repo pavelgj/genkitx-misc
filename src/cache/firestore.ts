@@ -36,7 +36,11 @@ export class FirestoreCacheStore implements CacheStore {
 
     if (data.expiresAt && data.expiresAt < Date.now()) {
       // Expired, clean up asynchronously
-      docRef.delete().catch(e => console.error(`[FirestoreCacheStore] Failed to delete expired key '${key}':`, e));
+      docRef
+        .delete()
+        .catch((e) =>
+          console.error(`[FirestoreCacheStore] Failed to delete expired key '${key}':`, e)
+        );
       return null;
     }
 
@@ -48,7 +52,7 @@ export class FirestoreCacheStore implements CacheStore {
     const cleanValue = removeUndefined(value);
     await docRef.set({
       value: cleanValue === undefined ? null : cleanValue,
-      expiresAt: Date.now() + ttlMs
+      expiresAt: Date.now() + ttlMs,
     });
   }
 }

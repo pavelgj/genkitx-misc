@@ -6,12 +6,12 @@ The Quota middleware allows you to enforce rate limits on your Genkit models.
 
 The `quota` function accepts the following options:
 
--   `store`: The storage backend instance (`QuotaStore`).
--   `limit`: The maximum number of requests allowed within the window.
--   `windowMs`: The duration of the window in milliseconds.
--   `key`: (Optional) A string or a function to generate a unique key for the quota. Defaults to `'global'`.
--   `logOnly`: (Optional) If `true`, logs a warning when quota is exceeded instead of throwing an error. Defaults to `false`.
--   `failOpen`: (Optional) If `true`, allows the request to proceed if the storage backend fails (e.g., database down). If `false` (default), throws an internal error.
+- `store`: The storage backend instance (`QuotaStore`).
+- `limit`: The maximum number of requests allowed within the window.
+- `windowMs`: The duration of the window in milliseconds.
+- `key`: (Optional) A string or a function to generate a unique key for the quota. Defaults to `'global'`.
+- `logOnly`: (Optional) If `true`, logs a warning when quota is exceeded instead of throwing an error. Defaults to `false`.
+- `failOpen`: (Optional) If `true`, allows the request to proceed if the storage backend fails (e.g., database down). If `false` (default), throws an internal error.
 
 ## Per-User Quota
 
@@ -26,8 +26,8 @@ quota({
     // Example: Extract user ID from request messages or config
     // Note: Ensure your flow/application passes this data to the model
     return context.auth.userId || 'anon';
-  }
-})
+  },
+});
 ```
 
 ## Storage Backends
@@ -67,7 +67,7 @@ import { PostgresQuotaStore } from 'genkitx-misc/quota/postgres';
 import { Pool } from 'pg';
 
 const pool = new Pool({
-  connectionString: 'postgresql://user:password@localhost:5432/mydb'
+  connectionString: 'postgresql://user:password@localhost:5432/mydb',
 });
 
 // Options:
@@ -118,8 +118,8 @@ To allow traffic during storage outages (prioritizing availability over strict l
 ```typescript
 quota({
   // ...
-  failOpen: true
-})
+  failOpen: true,
+});
 ```
 
 Note: Unless `logOnly` is `true`, if the store successfully reports that the limit is exceeded, the request will be blocked regardless of `failOpen` setting. `failOpen` only applies to storage errors.
@@ -142,13 +142,13 @@ export class MyCustomStore implements QuotaStore {
 
 1.  **Atomicity**: The `increment` operation MUST be atomic. It should read the current count, check expiration, increment, and write back in a safe manner (e.g., using database transactions or atomic increment operations) to prevent race conditions.
 2.  **Window Management**: The store is responsible for managing the time window logic.
-    -   **Fixed Window Strategy** (Interval starts on first request):
-        -   If the record does not exist or `expiresAt <= Date.now()` (window expired), reset the count to 0 (or `delta`) and set `expiresAt = Date.now() + windowMs`.
-        -   If `expiresAt > Date.now()` (window active), increment the existing count.
-        -   This strategy ensures users get the full `windowMs` duration, but the window start time depends on when the first request arrives.
+    - **Fixed Window Strategy** (Interval starts on first request):
+      - If the record does not exist or `expiresAt <= Date.now()` (window expired), reset the count to 0 (or `delta`) and set `expiresAt = Date.now() + windowMs`.
+      - If `expiresAt > Date.now()` (window active), increment the existing count.
+      - This strategy ensures users get the full `windowMs` duration, but the window start time depends on when the first request arrives.
 3.  **Optimization (Recommended)**: If the `limit` parameter is provided, check if the current usage (before incrementing) already meets or exceeds the limit.
-    -   If `usage >= limit`: **Do not write to the database.** Return the simulated new usage (`usage + delta`) or just the current usage (as long as it is > limit). This prevents unnecessary write costs during attacks or heavy load.
-    -   If `usage < limit`: Proceed with increment and write.
+    - If `usage >= limit`: **Do not write to the database.** Return the simulated new usage (`usage + delta`) or just the current usage (as long as it is > limit). This prevents unnecessary write costs during attacks or heavy load.
+    - If `usage < limit`: Proceed with increment and write.
 
 ### Example Implementation Logic
 
@@ -157,7 +157,7 @@ async increment(key, delta, windowMs, limit) {
   return db.transaction(async (tx) => {
     const data = await tx.get(key);
     const now = Date.now();
-    
+
     let usage = 0;
     let expiresAt = now + windowMs;
 
@@ -169,14 +169,14 @@ async increment(key, delta, windowMs, limit) {
       usage = 0;
       expiresAt = now + windowMs;
     }
-    
+
     // Optimization: Fail fast without write if limit exceeded
     if (limit !== undefined && usage >= limit) {
       return usage + delta;
     }
 
     usage += delta;
-    
+
     tx.set(key, { count: usage, expiresAt });
     return usage;
   });

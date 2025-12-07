@@ -6,9 +6,9 @@ The Cache middleware allows you to cache model responses to reduce costs and lat
 
 The `cache` function accepts the following options:
 
--   `store`: The storage backend instance (`CacheStore`).
--   `ttlMs`: The time-to-live for cached entries in milliseconds.
--   `key`: (Optional) A string or a function to generate a unique cache key from the request. Defaults to a SHA-256 hash of the request content (messages, config, tools, output).
+- `store`: The storage backend instance (`CacheStore`).
+- `ttlMs`: The time-to-live for cached entries in milliseconds.
+- `key`: (Optional) A string or a function to generate a unique cache key from the request. Defaults to a SHA-256 hash of the request content (messages, config, tools, output).
 
 ```typescript
 import { cache } from 'genkitx-misc/cache';
@@ -30,8 +30,8 @@ cache({
   key: ({ request }) => {
     // Example: specific key based on user and prompt
     return `user:${request.config.userId}:${request.messages[0].content[0].text}`;
-  }
-})
+  },
+});
 ```
 
 ## Storage Backends
@@ -49,8 +49,8 @@ const store = new FirestoreCacheStore(firestore, 'cache_collection');
 ```
 
 **TTL Management**:
-The middleware checks the `expiresAt` field lazily upon read. To ensure expired documents are physically deleted from Firestore (saving storage costs), you should configure a **Time-to-live (TTL) policy** in the Google Cloud Console for the collection used (default `'cache'`) on the `expiresAt` field. The middleware sets this field to a timestamp (number, milliseconds since epoch). Note that Firestore TTL expects a Timestamp or Date, but this library currently uses a number. 
-*Correction*: Firestore TTL policy requires a `Date/Timestamp` field. The current implementation stores `expiresAt` as a number (milliseconds).
+The middleware checks the `expiresAt` field lazily upon read. To ensure expired documents are physically deleted from Firestore (saving storage costs), you should configure a **Time-to-live (TTL) policy** in the Google Cloud Console for the collection used (default `'cache'`) on the `expiresAt` field. The middleware sets this field to a timestamp (number, milliseconds since epoch). Note that Firestore TTL expects a Timestamp or Date, but this library currently uses a number.
+_Correction_: Firestore TTL policy requires a `Date/Timestamp` field. The current implementation stores `expiresAt` as a number (milliseconds).
 To support native Firestore TTL policies effectively, you might need to handle cleanup yourself or wait for updates. However, the middleware will treat expired entries as a "miss", effectively logically deleting them.
 
 ### Redis
@@ -93,9 +93,11 @@ CREATE TABLE IF NOT EXISTS genkit_cache (
 **TTL Management**:
 The middleware lazily deletes expired rows when they are accessed. However, rows that are never accessed again will remain in the database indefinitely.
 **Recommendation**: Set up a background job (e.g., using `pg_cron` or an external scheduler) to periodically delete expired rows to reclaim space:
+
 ```sql
 DELETE FROM genkit_cache WHERE expires_at < (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint;
 ```
+
 (Note: `expires_at` is stored as milliseconds since epoch).
 
 ### In-Memory

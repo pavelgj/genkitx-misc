@@ -12,20 +12,13 @@
  * limitations under the License.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  jest,
-  beforeEach,
-  afterEach,
-} from "@jest/globals";
-import { cache } from "../../src/cache/middleware.js";
-import { InMemoryCacheStore } from "../../src/cache/memory.js";
-import { genkit } from "genkit";
-import { defineEchoModel } from "../helpers.js";
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import { cache } from '../../src/cache/middleware.js';
+import { InMemoryCacheStore } from '../../src/cache/memory.js';
+import { genkit } from 'genkit';
+import { defineEchoModel } from '../helpers.js';
 
-describe("Cache Middleware Integration", () => {
+describe('Cache Middleware Integration', () => {
   let ai: ReturnType<typeof genkit>;
   let store: InMemoryCacheStore;
 
@@ -40,25 +33,25 @@ describe("Cache Middleware Integration", () => {
     jest.useRealTimers();
   });
 
-  it("should cache responses", async () => {
+  it('should cache responses', async () => {
     const c = cache({ store, ttlMs: 1000 });
-    
+
     // First call - should be computed
     const response1 = await ai.generate({
-      model: "echoModel",
-      prompt: "hello",
+      model: 'echoModel',
+      prompt: 'hello',
       use: [c],
     });
-    expect(response1.text).toContain("Echo: hello");
+    expect(response1.text).toContain('Echo: hello');
 
     // Second call - should hit cache and return same object reference (for InMemoryStore)
     const response2 = await ai.generate({
-      model: "echoModel",
-      prompt: "hello",
+      model: 'echoModel',
+      prompt: 'hello',
       use: [c],
     });
-    expect(response2.text).toContain("Echo: hello");
-    
+    expect(response2.text).toContain('Echo: hello');
+
     // Verify it returned the cached object
     // Note: This relies on InMemoryStore storing the object reference.
     // If serialization happens, this might fail, but text content should match.
@@ -66,31 +59,31 @@ describe("Cache Middleware Integration", () => {
     expect(response2).toEqual(response1);
   });
 
-  it("should miss cache for different prompts", async () => {
+  it('should miss cache for different prompts', async () => {
     const c = cache({ store, ttlMs: 1000 });
-    
+
     const response1 = await ai.generate({
-      model: "echoModel",
-      prompt: "hello",
+      model: 'echoModel',
+      prompt: 'hello',
       use: [c],
     });
 
     const response2 = await ai.generate({
-      model: "echoModel",
-      prompt: "world",
+      model: 'echoModel',
+      prompt: 'world',
       use: [c],
     });
-    
-    expect(response2.text).toContain("Echo: world");
+
+    expect(response2.text).toContain('Echo: world');
     expect(response2).not.toBe(response1);
   });
 
-  it("should expire cache entries", async () => {
+  it('should expire cache entries', async () => {
     const c = cache({ store, ttlMs: 1000 });
-    
+
     const response1 = await ai.generate({
-      model: "echoModel",
-      prompt: "hello",
+      model: 'echoModel',
+      prompt: 'hello',
       use: [c],
     });
 
@@ -98,37 +91,37 @@ describe("Cache Middleware Integration", () => {
     jest.advanceTimersByTime(1001);
 
     const response2 = await ai.generate({
-      model: "echoModel",
-      prompt: "hello",
+      model: 'echoModel',
+      prompt: 'hello',
       use: [c],
     });
-    
+
     // Should be a new object because cache expired
     expect(response2).not.toBe(response1);
-    expect(response2.text).toContain("Echo: hello");
+    expect(response2.text).toContain('Echo: hello');
   });
 
-  it("should use custom key function", async () => {
-    const c = cache({ 
-      store, 
+  it('should use custom key function', async () => {
+    const c = cache({
+      store,
       ttlMs: 1000,
-      key: "static-key"
+      key: 'static-key',
     });
-    
+
     await ai.generate({
-      model: "echoModel",
-      prompt: "hello",
+      model: 'echoModel',
+      prompt: 'hello',
       use: [c],
     });
 
     // Even with different prompt, should hit cache if key is static
     const response2 = await ai.generate({
-      model: "echoModel",
-      prompt: "world",
+      model: 'echoModel',
+      prompt: 'world',
       use: [c],
     });
-    
+
     // Should return the cached response for "hello"
-    expect(response2.text).toContain("Echo: hello");
+    expect(response2.text).toContain('Echo: hello');
   });
 });

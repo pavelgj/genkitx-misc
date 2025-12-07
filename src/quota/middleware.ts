@@ -18,29 +18,22 @@ import { QuotaOptions } from './types.js';
 
 /**
  * Creates a quota middleware that enforces rate limits using a configurable storage backend.
- * 
+ *
  * @param options Configuration options for the quota middleware
  * @returns A ModelMiddleware that checks quota before processing the request
  */
 export function quota(options: QuotaOptions): ModelMiddleware {
-  const {
-    store,
-    limit,
-    windowMs,
-    key = 'global',
-    logOnly = false,
-    failOpen = false,
-  } = options;
+  const { store, limit, windowMs, key = 'global', logOnly = false, failOpen = false } = options;
 
   return async (req, next) => {
     const k = typeof key === 'function' ? key({ request: req }) : key;
-    
+
     try {
       const usage = await store.increment(k, 1, windowMs, limit);
-      
+
       if (usage > limit) {
         const msg = `Quota exceeded for key '${k}'. Usage: ${usage}/${limit} in ${windowMs}ms`;
-        
+
         if (!logOnly) {
           throw new GenkitError({
             status: 'RESOURCE_EXHAUSTED',
@@ -49,8 +42,8 @@ export function quota(options: QuotaOptions): ModelMiddleware {
               usage,
               limit,
               windowMs,
-              key: k
-            }
+              key: k,
+            },
           });
         } else {
           console.warn(`[Genkit Quota Warning] ${msg}`);
@@ -75,7 +68,7 @@ export function quota(options: QuotaOptions): ModelMiddleware {
         });
       }
     }
-    
+
     return next(req);
   };
 }
