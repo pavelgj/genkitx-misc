@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { FirestoreQuotaStore } from '../src/quota/firestore.js';
+import { FirestoreQuotaStore } from '../../src/quota/firestore.js';
 import { Firestore } from '@google-cloud/firestore';
 
 const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST;

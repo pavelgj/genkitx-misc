@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { InMemoryQuotaStore } from '../src/quota/memory.js';
+import { InMemoryQuotaStore } from '../../src/quota/memory.js';
 
 describe('InMemory Quota Store', () => {
   let store: InMemoryQuotaStore;

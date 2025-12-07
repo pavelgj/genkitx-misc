@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { RTDBQuotaStore } from '../src/quota/rtdb.js';
+import { RTDBQuotaStore } from '../../src/quota/rtdb.js';
 import * as admin from 'firebase-admin';
 
 const emulatorHost = process.env.FIREBASE_DATABASE_EMULATOR_HOST;

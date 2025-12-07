@@ -51,6 +51,36 @@
       "require": "./lib/quota/memory.js",
       "import": "./lib/quota/memory.mjs",
       "default": "./lib/quota/memory.js"
+    },
+    "./cache": {
+      "types": "./lib/cache/index.d.ts",
+      "require": "./lib/cache/index.js",
+      "import": "./lib/cache/index.mjs",
+      "default": "./lib/cache/index.js"
+    },
+    "./cache/memory": {
+      "types": "./lib/cache/memory.d.ts",
+      "require": "./lib/cache/memory.js",
+      "import": "./lib/cache/memory.mjs",
+      "default": "./lib/cache/memory.js"
+    },
+    "./cache/firestore": {
+      "types": "./lib/cache/firestore.d.ts",
+      "require": "./lib/cache/firestore.js",
+      "import": "./lib/cache/firestore.mjs",
+      "default": "./lib/cache/firestore.js"
+    },
+    "./cache/redis": {
+      "types": "./lib/cache/redis.d.ts",
+      "require": "./lib/cache/redis.js",
+      "import": "./lib/cache/redis.mjs",
+      "default": "./lib/cache/redis.js"
+    },
+    "./cache/postgres": {
+      "types": "./lib/cache/postgres.d.ts",
+      "require": "./lib/cache/postgres.js",
+      "import": "./lib/cache/postgres.mjs",
+      "default": "./lib/cache/postgres.js"
     }
   },
   "typesVersions": {
@@ -72,6 +102,21 @@
       ],
       "quota/memory": [
         "lib/quota/memory.d.ts"
+      ],
+      "cache": [
+        "lib/cache/index.d.ts"
+      ],
+      "cache/memory": [
+        "lib/cache/memory.d.ts"
+      ],
+      "cache/firestore": [
+        "lib/cache/firestore.d.ts"
+      ],
+      "cache/redis": [
+        "lib/cache/redis.d.ts"
+      ],
+      "cache/postgres": [
+        "lib/cache/postgres.d.ts"
       ]
     }
   },

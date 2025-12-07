@@ -1,7 +1,7 @@
 import { genkit } from "genkit";
 import { googleAI } from "@genkit-ai/google-genai";
-import { quota } from "../src/quota/index.js";
-import { PostgresQuotaStore } from "../src/quota/postgres.js";
+import { quota } from "../../src/quota/index.js";
+import { PostgresQuotaStore } from "../../src/quota/postgres.js";
 import { Pool } from "pg";
 
 const ai = genkit({

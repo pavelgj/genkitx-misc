@@ -20,11 +20,11 @@ import {
   beforeEach,
   afterEach,
 } from "@jest/globals";
-import { quota } from "../src/quota/middleware.js";
-import { InMemoryQuotaStore } from "../src/quota/memory.js";
+import { quota } from "../../src/quota/middleware.js";
+import { InMemoryQuotaStore } from "../../src/quota/memory.js";
 import { genkit, GenkitError } from "genkit";
-import { defineEchoModel } from "./helpers.js";
-import { QuotaStore } from "../src/quota/index.js";
+import { defineEchoModel } from "../helpers.js";
+import { QuotaStore } from "../../src/quota/index.js";
 
 describe("Quota Middleware Integration", () => {
   let ai: ReturnType<typeof genkit>;

@@ -19,7 +19,7 @@ import {
   beforeEach,
 } from "@jest/globals";
 import RedisMock from "ioredis-mock";
-import { RedisQuotaStore } from "../src/quota/redis.js";
+import { RedisQuotaStore } from "../../src/quota/redis.js";
 
 describe("Redis Quota Store", () => {
   let store: RedisQuotaStore;

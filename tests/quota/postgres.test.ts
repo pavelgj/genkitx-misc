@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { newDb } from 'pg-mem';
-import { PostgresQuotaStore } from '../src/quota/postgres.js';
+import { PostgresQuotaStore } from '../../src/quota/postgres.js';
 
 describe('Postgres Quota Store', () => {
   let store: PostgresQuotaStore;

@@ -1,7 +1,7 @@
 import { genkit } from "genkit";
 import { googleAI } from "@genkit-ai/google-genai";
-import { quota } from "../src/quota/index.js";
-import { RedisQuotaStore } from "../src/quota/redis.js";
+import { quota } from "../../src/quota/index.js";
+import { RedisQuotaStore } from "../../src/quota/redis.js";
 import Redis from "ioredis";
 
 const ai = genkit({
