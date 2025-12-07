@@ -16,12 +16,12 @@ bun add genkitx-misc
 
 ### Optional Dependencies
 
-This package has optional dependencies that are required only for specific features:
+This package has optional dependencies that are required only for specific storage backends:
 
--   **Firestore Quota Store**: Requires `@google-cloud/firestore`.
--   **Realtime Database Quota Store**: Requires `firebase-admin`.
--   **PostgreSQL Quota Store**: Requires `pg`.
--   **Redis Quota Store**: Requires `ioredis`.
+-   **Firestore**: Requires `@google-cloud/firestore`.
+-   **Realtime Database**: Requires `firebase-admin` (Quota only).
+-   **PostgreSQL**: Requires `pg`.
+-   **Redis**: Requires `ioredis`.
 
 ## Features
 
@@ -31,35 +31,61 @@ A flexible rate-limiting middleware for Genkit models.
 
 -   **Pluggable Storage**: Supports Firestore, Realtime Database, PostgreSQL, Redis, and In-Memory storage.
 -   **Configurable**: Set limits, window size, and custom keys (e.g., per-user).
--   **Fail-Safe**: Configurable behavior when storage is unavailable (fail open or closed).
 -   **Optimized**: Minimizes database writes when limits are exceeded.
 
-## Basic Usage
+[📚 Read Quota Documentation](docs/quota.md)
+
+#### Example
 
 ```typescript
-import { genkit } from 'genkit';
 import { quota } from 'genkitx-misc/quota';
-import { FirestoreQuotaStore } from 'genkitx-misc/quota/firestore';
-import { Firestore } from '@google-cloud/firestore';
-
-const ai = genkit({ plugins: [/* ... */] });
-const firestore = new Firestore();
-const quotaStore = new FirestoreQuotaStore(firestore, 'quotas');
+import { InMemoryQuotaStore } from 'genkitx-misc/quota/memory';
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
-  const response = await ai.generate({
-    model: 'gemini-2.5-flash',
-    prompt: input,
+  await ai.generate({
+    // ...
     use: [
-      quota({
-        store: quotaStore,
-        limit: 10,
-        windowMs: 60000, // 1 minute
+      quota({ 
+        store: new InMemoryQuotaStore(), 
+        limit: 10, 
+        windowMs: 60000 
       })
     ]
   });
-  return response.text;
 });
 ```
 
-For detailed documentation on the Quota middleware, including per-user limits and storage configuration, see [docs/quota.md](docs/quota.md).
+### Cache Middleware
+
+A caching middleware for Genkit models to reduce costs and latency.
+
+-   **Pluggable Storage**: Supports Firestore, PostgreSQL, Redis, and In-Memory storage.
+-   **Flexible**: Customize cache keys and TTL.
+-   **Fail-Open**: Ensures application stability even if cache storage fails.
+
+[📚 Read Cache Documentation](docs/cache.md)
+
+#### Example
+
+```typescript
+import { cache } from 'genkitx-misc/cache';
+import { InMemoryCacheStore } from 'genkitx-misc/cache/memory';
+
+const myFlow = ai.defineFlow('myFlow', async (input) => {
+  await ai.generate({
+    // ...
+    use: [
+      cache({ 
+        store: new InMemoryCacheStore(), 
+        ttlMs: 60000 
+      })
+    ]
+  });
+});
+```
+
+## Examples
+
+Check the `examples/` directory for complete sample projects:
+-   [Quota Examples](examples/quota/)
+-   [Cache Examples](examples/cache/)
