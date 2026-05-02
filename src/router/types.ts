@@ -12,46 +12,40 @@
  * limitations under the License.
  */
 
-import { GenerateRequest, ModelArgument } from 'genkit/model';
+import { GenerateRequest } from 'genkit/model';
 
+/**
+ * Input provided to routing conditions and classifiers.
+ */
 export type RouterInput = {
   request: GenerateRequest;
 };
 
+/**
+ * A routing condition function. Returns true if the request matches.
+ */
 export type RoutingCondition = (input: RouterInput) => boolean | Promise<boolean>;
 
-export interface RoutingRule {
-  /**
-   * Condition to check against the request.
-   */
-  when: RoutingCondition;
-
-  /**
-   * Model to use if the condition is met.
-   */
-  use: ModelArgument;
-}
-
+/**
+ * A classifier function. Returns a string key used to look up a model.
+ */
 export type Classifier = (input: RouterInput) => string | Promise<string>;
 
-export interface RouterOptions {
+/**
+ * Plugin options for the router middleware (non-serializable).
+ * These are provided when registering the middleware plugin.
+ */
+export interface RouterPluginOptions {
   /**
-   * Prioritized list of routing rules.
-   * Evaluated in order. The first rule whose `when` condition evaluates to true will be used.
-   * If a rule matches, its `use` model is selected.
+   * Custom named matchers (routing conditions).
+   * Built-in matchers ('hasMedia', 'hasTools', 'hasHistory') are always available.
+   * Register additional matchers here, then reference them by name in the config.
    */
-  rules?: RoutingRule[];
+  matchers?: Record<string, RoutingCondition>;
 
   /**
-   * Function to classify the request into a category (e.g., 'simple', 'complex').
-   * The returned string is used as a key to look up a model in the `models` map.
-   * If provided, this is evaluated after `rules` (if any rules fail to match).
+   * Custom named classifiers.
+   * Register classifier functions here, then reference them by name in the config.
    */
-  classifier?: Classifier;
-
-  /**
-   * Map of category keys to models.
-   * Required if `classifier` is used.
-   */
-  models?: Record<string, ModelArgument>;
+  classifiers?: Record<string, Classifier>;
 }

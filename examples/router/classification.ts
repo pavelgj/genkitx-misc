@@ -17,7 +17,21 @@ import { googleAI } from '@genkit-ai/google-genai';
 import { router } from '../../src/router/index.js';
 
 const ai = genkit({
-  plugins: [googleAI()],
+  plugins: [
+    googleAI(),
+    // Register the router plugin with a custom classifier
+    router.plugin({
+      classifiers: {
+        byLength: async ({ request }) => {
+          // Simple heuristic: long prompts -> complex
+          const text = request.messages
+            .map((m) => m.content.map((c) => c.text).join(''))
+            .join('');
+          return text.length > 100 ? 'complex' : 'simple';
+        },
+      },
+    }),
+  ],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
@@ -25,17 +39,11 @@ const myFlow = ai.defineFlow('myFlow', async (input) => {
     model: 'googleai/gemini-2.5-flash',
     prompt: input,
     use: [
-      router(ai, {
-        classifier: async (input) => {
-          // Simple heuristic: long prompts -> complex
-          const text = input.request.messages
-            .map((m) => m.content.map((c) => c.text).join(''))
-            .join('');
-          return text.length > 100 ? 'complex' : 'simple';
-        },
+      router({
+        classifier: 'byLength',
         models: {
-          simple: 'googleai/gemini-2.5-flash',
-          complex: 'googleai/gemini-2.5-pro',
+          simple: { name: 'googleai/gemini-2.5-flash' },
+          complex: { name: 'googleai/gemini-2.5-pro' },
         },
       }),
     ],

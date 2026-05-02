@@ -4,26 +4,25 @@ import { quota } from '../../src/quota/index.js';
 import { PostgresQuotaStore } from '../../src/quota/postgres.js';
 import { Pool } from 'pg';
 
-const ai = genkit({
-  plugins: [googleAI()],
-});
-
 // Assumes a local Postgres instance is running on default port (5432)
-// and accessible by the current user without password (trust auth)
-// or configured via environment variables (PGUSER, PGPASSWORD, PGHOST, PGPORT, PGDATABASE)
 const pool = new Pool({
-  database: 'postgres', // Default database
+  database: 'postgres',
 });
-
 const store = new PostgresQuotaStore({ pool });
+
+const ai = genkit({
+  plugins: [
+    googleAI(),
+    quota.plugin({ store }),
+  ],
+});
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
-    model: googleAI.model('gemini-2.5-flash'),
+    model: 'googleai/gemini-2.5-flash',
     prompt: input,
     use: [
       quota({
-        store,
         limit: 2,
         windowMs: 60000,
         key: 'postgres-example',

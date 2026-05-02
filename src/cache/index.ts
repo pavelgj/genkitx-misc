@@ -12,5 +12,5 @@
  * limitations under the License.
  */
 
-export * from './types.js';
-export * from './middleware.js';
+export { cache, CacheConfigSchema, type CacheConfig } from './middleware.js';
+export type { CacheStore, CacheKeyFn, CachePluginOptions } from './types.js';

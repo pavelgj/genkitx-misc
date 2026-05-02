@@ -15,13 +15,14 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { genkit, z } from 'genkit';
 import { router } from '../../src/router/middleware.js';
-import { hasTools, hasMedia } from '../../src/router/predicates.js';
 
 describe('Router Middleware', () => {
   let ai: ReturnType<typeof genkit>;
 
   beforeEach(() => {
-    ai = genkit({});
+    ai = genkit({
+      plugins: [router.plugin()],
+    });
 
     ai.defineModel({ name: 'modelA' }, async () => ({
       message: { role: 'model', content: [{ text: 'Response from Model A' }] },
@@ -36,79 +37,67 @@ describe('Router Middleware', () => {
     }));
   });
 
-  it('should route based on rules', async () => {
-    const r = router(ai, {
-      rules: [{ when: () => true, use: 'modelA' }],
-    });
-
+  it('should route based on rules using built-in matcher', async () => {
     const response = await ai.generate({
       model: 'defaultModel',
-      prompt: 'hello',
-      use: [r],
+      prompt: [
+        { text: 'look at this' },
+        { media: { url: 'http://example.com/image.jpg', contentType: 'image/jpeg' } },
+      ],
+      use: [
+        router({
+          rules: [{ when: 'hasMedia', use: { name: 'modelA' } }],
+        }),
+      ],
     });
 
     expect(response.text).toContain('Model A');
   });
 
-  it('should fallback to next/default if no rules match', async () => {
-    const r = router(ai, {
-      rules: [{ when: () => false, use: 'modelA' }],
-    });
-
+  it('should fallback to default if no rules match', async () => {
     const response = await ai.generate({
       model: 'defaultModel',
       prompt: 'hello',
-      use: [r],
+      use: [
+        router({
+          rules: [{ when: 'hasMedia', use: { name: 'modelA' } }],
+        }),
+      ],
     });
 
     expect(response.text).toContain('Default Model');
   });
 
   it('should prioritize rules in order', async () => {
-    const r = router(ai, {
-      rules: [
-        { when: () => true, use: 'modelA' },
-        { when: () => true, use: 'modelB' },
-      ],
-    });
-
     const response = await ai.generate({
       model: 'defaultModel',
-      prompt: 'hello',
-      use: [r],
+      prompt: [
+        { text: 'look at this' },
+        { media: { url: 'http://example.com/image.jpg', contentType: 'image/jpeg' } },
+      ],
+      use: [
+        router({
+          rules: [
+            { when: 'hasMedia', use: { name: 'modelA' } },
+            { when: 'hasTools', use: { name: 'modelB' } },
+          ],
+        }),
+      ],
     });
 
     expect(response.text).toContain('Model A');
   });
 
-  it('should use classifier', async () => {
-    const r = router(ai, {
-      classifier: async () => 'typeB',
-      models: {
-        typeA: 'modelA',
-        typeB: 'modelB',
-      },
-    });
-
-    const response = await ai.generate({
-      model: 'defaultModel',
-      prompt: 'hello',
-      use: [r],
-    });
-
-    expect(response.text).toContain('Model B');
-  });
-
-  it('should support hasTools predicate', async () => {
-    const r = router(ai, {
-      rules: [{ when: hasTools, use: 'modelB' }],
-    });
-
+  it('should support hasTools matcher', async () => {
     // Without tools
     const resp1 = await ai.generate({
       model: 'defaultModel',
       prompt: 'hello',
-      use: [r],
+      use: [
+        router({
+          rules: [{ when: 'hasTools', use: { name: 'modelB' } }],
+        }),
+      ],
     });
     expect(resp1.text).toContain('Default Model');
 
@@ -121,33 +110,104 @@ describe('Router Middleware', () => {
       model: 'defaultModel',
       prompt: 'hello',
       tools: [tool],
-      use: [r],
+      use: [
+        router({
+          rules: [{ when: 'hasTools', use: { name: 'modelB' } }],
+        }),
+      ],
     });
     expect(resp2.text).toContain('Model B');
   });
+});
 
-  it('should support hasMedia predicate', async () => {
-    const r = router(ai, {
-      rules: [{ when: hasMedia, use: 'modelB' }],
+describe('Router Middleware with custom matchers', () => {
+  it('should use custom matchers from plugin options', async () => {
+    const ai = genkit({
+      plugins: [
+        router.plugin({
+          matchers: {
+            alwaysTrue: () => true,
+          },
+        }),
+      ],
     });
 
-    // Without media
-    const resp1 = await ai.generate({
+    ai.defineModel({ name: 'modelA' }, async () => ({
+      message: { role: 'model', content: [{ text: 'Response from Model A' }] },
+    }));
+    ai.defineModel({ name: 'defaultModel' }, async () => ({
+      message: { role: 'model', content: [{ text: 'Response from Default Model' }] },
+    }));
+
+    const response = await ai.generate({
       model: 'defaultModel',
       prompt: 'hello',
-      use: [r],
+      use: [
+        router({
+          rules: [{ when: 'alwaysTrue', use: { name: 'modelA' } }],
+        }),
+      ],
     });
-    expect(resp1.text).toContain('Default Model');
 
-    // With media
+    expect(response.text).toContain('Model A');
+  });
+});
+
+describe('Router Middleware with classifier', () => {
+  it('should use classifier from plugin options', async () => {
+    const ai = genkit({
+      plugins: [
+        router.plugin({
+          classifiers: {
+            byLength: async ({ request }) => {
+              const text = request.messages
+                .map((m: any) => m.content.map((c: any) => c.text).join(''))
+                .join('');
+              return text.length > 20 ? 'complex' : 'simple';
+            },
+          },
+        }),
+      ],
+    });
+
+    ai.defineModel({ name: 'simpleModel' }, async () => ({
+      message: { role: 'model', content: [{ text: 'Response from Simple Model' }] },
+    }));
+    ai.defineModel({ name: 'complexModel' }, async () => ({
+      message: { role: 'model', content: [{ text: 'Response from Complex Model' }] },
+    }));
+    ai.defineModel({ name: 'defaultModel' }, async () => ({
+      message: { role: 'model', content: [{ text: 'Response from Default Model' }] },
+    }));
+
+    const resp1 = await ai.generate({
+      model: 'defaultModel',
+      prompt: 'short',
+      use: [
+        router({
+          classifier: 'byLength',
+          models: {
+            simple: { name: 'simpleModel' },
+            complex: { name: 'complexModel' },
+          },
+        }),
+      ],
+    });
+    expect(resp1.text).toContain('Simple Model');
+
     const resp2 = await ai.generate({
       model: 'defaultModel',
-      prompt: [
-        { text: 'look at this' },
-        { media: { url: 'http://example.com/image.jpg', contentType: 'image/jpeg' } },
+      prompt: 'This is a much longer prompt that should be classified as complex',
+      use: [
+        router({
+          classifier: 'byLength',
+          models: {
+            simple: { name: 'simpleModel' },
+            complex: { name: 'complexModel' },
+          },
+        }),
       ],
-      use: [r],
     });
-    expect(resp2.text).toContain('Model B');
+    expect(resp2.text).toContain('Complex Model');
   });
 });

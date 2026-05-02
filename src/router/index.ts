@@ -12,6 +12,6 @@
  * limitations under the License.
  */
 
-export * from './middleware.js';
-export * from './types.js';
-export * from './predicates.js';
+export { router, RouterConfigSchema, type RouterConfig } from './middleware.js';
+export { hasMedia, hasTools, hasHistory, BUILTIN_MATCHERS } from './predicates.js';
+export type { RouterInput, RoutingCondition, Classifier, RouterPluginOptions } from './types.js';

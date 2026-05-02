@@ -4,22 +4,23 @@ import { quota } from '../../src/quota/index.js';
 import { RedisQuotaStore } from '../../src/quota/redis.js';
 import Redis from 'ioredis';
 
-const ai = genkit({
-  plugins: [googleAI()],
-});
-
 // Assumes local Redis on default port 6379
 const redis = new Redis();
-
 const store = new RedisQuotaStore({ client: redis });
+
+const ai = genkit({
+  plugins: [
+    googleAI(),
+    quota.plugin({ store }),
+  ],
+});
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
-    model: googleAI.model('gemini-2.5-flash'),
+    model: 'googleai/gemini-2.5-flash',
     prompt: input,
     use: [
       quota({
-        store,
         limit: 2,
         windowMs: 60000,
         key: 'redis-example',

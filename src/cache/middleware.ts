@@ -13,55 +13,122 @@
  */
 
 import { createHash } from 'crypto';
-import { ModelMiddleware } from 'genkit/model';
-import { CacheOptions } from './types.js';
+import { z } from 'genkit';
+import { generateMiddleware, type GenerateMiddleware } from 'genkit/beta';
+import type { CacheKeyFn, CachePluginOptions } from './types.js';
+
+export const CacheConfigSchema = z
+  .object({
+    /**
+     * The time to live for cached entries in milliseconds.
+     */
+    ttlMs: z.number().describe('The time to live for cached entries in milliseconds.'),
+
+    /**
+     * Static string key to use for the cache.
+     * If not provided and no keyFn is specified, a hash of the request is used.
+     */
+    key: z.string().optional().describe('Static string key to use for the cache.'),
+
+    /**
+     * Name of a registered key generation function (from plugin options).
+     * Takes precedence over the static `key` if both are provided.
+     */
+    keyFn: z
+      .string()
+      .optional()
+      .describe('Name of a registered key generation function from plugin options.'),
+  })
+  .passthrough();
+
+export type CacheConfig = z.infer<typeof CacheConfigSchema>;
 
 /**
- * Creates a cache middleware that caches model responses.
+ * Creates a middleware that caches model responses.
  *
- * @param options Configuration options for the cache middleware
- * @returns A ModelMiddleware that checks cache before processing the request
+ * The storage backend (`store`) and custom key functions (`keyFns`) are provided
+ * via plugin options (non-serializable), while serializable config like `ttlMs`
+ * and `key`/`keyFn` are provided per-use.
+ *
+ * ```ts
+ * // Register the plugin:
+ * const ai = genkit({
+ *   plugins: [cache.plugin({ store: new InMemoryCacheStore() })],
+ * });
+ *
+ * // Use in generate:
+ * const response = await ai.generate({
+ *   model: 'my-model',
+ *   prompt: 'hello',
+ *   use: [cache({ ttlMs: 60000 })],
+ * });
+ * ```
  */
-export function cache(options: CacheOptions): ModelMiddleware {
-  const { store, ttlMs, key } = options;
-
-  return async (req, next) => {
-    let cacheKey: string;
-
-    if (key) {
-      if (typeof key === 'function') {
-        cacheKey = key({ request: req });
-      } else {
-        cacheKey = key;
+export const cache: GenerateMiddleware<typeof CacheConfigSchema, CachePluginOptions> =
+  generateMiddleware(
+    {
+      name: 'cache',
+      description: 'Caches model responses to reduce costs and latency for identical requests.',
+      configSchema: CacheConfigSchema,
+    },
+    ({ config, pluginConfig }) => {
+      const store = pluginConfig?.store;
+      if (!store) {
+        throw new Error('Cache middleware requires a store in plugin options.');
       }
-    } else {
-      // Default key generation: hash of the request
-      const stableReq = {
-        messages: req.messages,
-        config: req.config,
-        tools: req.tools,
-        output: req.output,
+
+      const { ttlMs = 60000, key: staticKey, keyFn: keyFnName } = config || {};
+      const keyFns = pluginConfig?.keyFns || {};
+
+      // Resolve key function
+      let resolvedKeyFn: CacheKeyFn | undefined;
+      if (keyFnName) {
+        resolvedKeyFn = keyFns[keyFnName];
+        if (!resolvedKeyFn) {
+          throw new Error(
+            `Cache key function '${keyFnName}' not found. Available: ${Object.keys(keyFns).join(', ') || '(none)'}`
+          );
+        }
+      }
+
+      return {
+        model: async (req, ctx, next) => {
+          let cacheKey: string;
+
+          if (resolvedKeyFn) {
+            cacheKey = resolvedKeyFn({ request: req });
+          } else if (staticKey) {
+            cacheKey = staticKey;
+          } else {
+            // Default key generation: hash of the request
+            const stableReq = {
+              messages: req.messages,
+              config: req.config,
+              tools: req.tools,
+              output: req.output,
+            };
+            cacheKey = createHash('sha256').update(JSON.stringify(stableReq)).digest('hex');
+          }
+
+          try {
+            const cached = await store.get(cacheKey);
+            if (cached) {
+              return cached;
+            }
+          } catch (e) {
+            console.error(`[Genkit Cache Error] Failed to read cache for '${cacheKey}':`, e);
+          }
+
+          const response = await next(req, ctx);
+
+          try {
+            await store.set(cacheKey, response, ttlMs);
+          } catch (e) {
+            console.error(`[Genkit Cache Error] Failed to write cache for '${cacheKey}':`, e);
+          }
+
+          return response;
+        },
       };
-      cacheKey = createHash('sha256').update(JSON.stringify(stableReq)).digest('hex');
     }
-
-    try {
-      const cached = await store.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
-    } catch (e) {
-      console.error(`[Genkit Cache Error] Failed to read cache for '${cacheKey}':`, e);
-    }
-
-    const response = await next(req);
-
-    try {
-      await store.set(cacheKey, response, ttlMs);
-    } catch (e) {
-      console.error(`[Genkit Cache Error] Failed to write cache for '${cacheKey}':`, e);
-    }
-
-    return response;
-  };
-}
+  );

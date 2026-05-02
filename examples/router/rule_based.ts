@@ -12,12 +12,16 @@
  * limitations under the License.
  */
 
-import { genkit, z } from 'genkit';
+import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { router, hasMedia, hasTools } from '../../src/router/index.js';
+import { router } from '../../src/router/index.js';
 
 const ai = genkit({
-  plugins: [googleAI()],
+  plugins: [
+    googleAI(),
+    // Register the router plugin (built-in matchers are always available)
+    router.plugin(),
+  ],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
@@ -25,12 +29,12 @@ const myFlow = ai.defineFlow('myFlow', async (input) => {
     model: 'googleai/gemini-2.5-flash', // Default fallback
     prompt: input,
     use: [
-      router(ai, {
+      router({
         rules: [
           // Use Pro model for requests with media
-          { when: hasMedia, use: 'googleai/gemini-2.5-pro' },
+          { when: 'hasMedia', use: { name: 'googleai/gemini-2.5-pro' } },
           // Use Pro model for requests with tools
-          { when: hasTools, use: 'googleai/gemini-2.5-pro' },
+          { when: 'hasTools', use: { name: 'googleai/gemini-2.5-pro' } },
         ],
       }),
     ],

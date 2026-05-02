@@ -23,9 +23,11 @@ describe('Cache Middleware Integration', () => {
   let store: InMemoryCacheStore;
 
   beforeEach(() => {
-    ai = genkit({});
-    defineEchoModel(ai);
     store = new InMemoryCacheStore();
+    ai = genkit({
+      plugins: [cache.plugin({ store })],
+    });
+    defineEchoModel(ai);
     jest.useFakeTimers();
   });
 
@@ -34,13 +36,11 @@ describe('Cache Middleware Integration', () => {
   });
 
   it('should cache responses', async () => {
-    const c = cache({ store, ttlMs: 1000 });
-
     // First call - should be computed
     const response1 = await ai.generate({
       model: 'echoModel',
       prompt: 'hello',
-      use: [c],
+      use: [cache({ ttlMs: 1000 })],
     });
     expect(response1.text).toContain('Echo: hello');
 
@@ -48,30 +48,25 @@ describe('Cache Middleware Integration', () => {
     const response2 = await ai.generate({
       model: 'echoModel',
       prompt: 'hello',
-      use: [c],
+      use: [cache({ ttlMs: 1000 })],
     });
     expect(response2.text).toContain('Echo: hello');
 
     // Verify it returned the cached object
-    // Note: This relies on InMemoryStore storing the object reference.
-    // If serialization happens, this might fail, but text content should match.
-    // For InMemoryStore implementation we did earlier, it stores ref.
     expect(response2).toEqual(response1);
   });
 
   it('should miss cache for different prompts', async () => {
-    const c = cache({ store, ttlMs: 1000 });
-
     const response1 = await ai.generate({
       model: 'echoModel',
       prompt: 'hello',
-      use: [c],
+      use: [cache({ ttlMs: 1000 })],
     });
 
     const response2 = await ai.generate({
       model: 'echoModel',
       prompt: 'world',
-      use: [c],
+      use: [cache({ ttlMs: 1000 })],
     });
 
     expect(response2.text).toContain('Echo: world');
@@ -79,12 +74,10 @@ describe('Cache Middleware Integration', () => {
   });
 
   it('should expire cache entries', async () => {
-    const c = cache({ store, ttlMs: 1000 });
-
     const response1 = await ai.generate({
       model: 'echoModel',
       prompt: 'hello',
-      use: [c],
+      use: [cache({ ttlMs: 1000 })],
     });
 
     // Advance time past TTL
@@ -93,7 +86,7 @@ describe('Cache Middleware Integration', () => {
     const response2 = await ai.generate({
       model: 'echoModel',
       prompt: 'hello',
-      use: [c],
+      use: [cache({ ttlMs: 1000 })],
     });
 
     // Should be a new object because cache expired
@@ -101,27 +94,54 @@ describe('Cache Middleware Integration', () => {
     expect(response2.text).toContain('Echo: hello');
   });
 
-  it('should use custom key function', async () => {
-    const c = cache({
-      store,
-      ttlMs: 1000,
-      key: 'static-key',
-    });
-
+  it('should use static key', async () => {
     await ai.generate({
       model: 'echoModel',
       prompt: 'hello',
-      use: [c],
+      use: [cache({ ttlMs: 1000, key: 'static-key' })],
     });
 
     // Even with different prompt, should hit cache if key is static
     const response2 = await ai.generate({
       model: 'echoModel',
       prompt: 'world',
-      use: [c],
+      use: [cache({ ttlMs: 1000, key: 'static-key' })],
     });
 
     // Should return the cached response for "hello"
     expect(response2.text).toContain('Echo: hello');
+  });
+
+  it('should use named key function', async () => {
+    const storeWithKeyFn = new InMemoryCacheStore();
+    const aiWithKeyFn = genkit({
+      plugins: [
+        cache.plugin({
+          store: storeWithKeyFn,
+          keyFns: {
+            byFirstWord: ({ request }) => {
+              const text = request.messages[0]?.content[0]?.text || '';
+              return text.split(' ')[0];
+            },
+          },
+        }),
+      ],
+    });
+    defineEchoModel(aiWithKeyFn);
+
+    await aiWithKeyFn.generate({
+      model: 'echoModel',
+      prompt: 'hello world',
+      use: [cache({ ttlMs: 1000, keyFn: 'byFirstWord' })],
+    });
+
+    // Same first word, should hit cache
+    const response2 = await aiWithKeyFn.generate({
+      model: 'echoModel',
+      prompt: 'hello universe',
+      use: [cache({ ttlMs: 1000, keyFn: 'byFirstWord' })],
+    });
+
+    expect(response2.text).toContain('Echo: hello world');
   });
 });

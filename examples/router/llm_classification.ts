@@ -16,21 +16,35 @@ import { genkit, z } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { router } from '../../src/router/index.js';
 
-const ai = genkit({
-  plugins: [googleAI()],
-});
+// We create the Genkit instance first so we can use it in the classifier
+let ai: ReturnType<typeof genkit>;
 
-// Define a helper flow for classification to keep things clean
-const classifierFlow = ai.defineFlow('classifier', async (text: string) => {
-  const result = await ai.generate({
-    model: 'googleai/gemini-2.5-flash-lite', // Use lightweight model for routing
-    prompt: `Classify the following prompt as either "simple" (math, greeting, short question) or "complex" (coding, creative writing, reasoning).\n\nPrompt: ${text}\n\nClassification:`,
-    output: {
-      format: 'enum',
-      schema: z.enum(['simple', 'complex']),
-    },
-  });
-  return result.output;
+ai = genkit({
+  plugins: [
+    googleAI(),
+    // Register the router plugin with an LLM-based classifier
+    router.plugin({
+      classifiers: {
+        llmClassifier: async ({ request }) => {
+          // Extract text from request
+          const text = request.messages
+            .map((m) => m.content.map((c) => c.text).join(''))
+            .join('\n');
+
+          // Use a lightweight model for classification
+          const result = await ai.generate({
+            model: 'googleai/gemini-2.5-flash-lite',
+            prompt: `Classify the following prompt as either "simple" (math, greeting, short question) or "complex" (coding, creative writing, reasoning).\n\nPrompt: ${text}\n\nClassification:`,
+            output: {
+              format: 'enum',
+              schema: z.enum(['simple', 'complex']),
+            },
+          });
+          return result.output || 'simple';
+        },
+      },
+    }),
+  ],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
@@ -38,21 +52,11 @@ const myFlow = ai.defineFlow('myFlow', async (input) => {
     model: 'googleai/gemini-2.5-flash',
     prompt: input,
     use: [
-      router(ai, {
-        classifier: async (input) => {
-          // Extract text from request
-          const text = input.request.messages
-            .map((m) => m.content.map((c) => c.text).join(''))
-            .join('\n');
-
-          // Call the classifier flow (or direct generate)
-          // Note: In a real scenario, you might want to handle errors gracefully or use a fallback
-          const classification = await classifierFlow(text);
-          return classification || 'simple';
-        },
+      router({
+        classifier: 'llmClassifier',
         models: {
-          simple: 'googleai/gemini-2.5-flash',
-          complex: 'googleai/gemini-2.5-pro',
+          simple: { name: 'googleai/gemini-2.5-flash' },
+          complex: { name: 'googleai/gemini-2.5-pro' },
         },
       }),
     ],

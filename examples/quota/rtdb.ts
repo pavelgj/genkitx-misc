@@ -1,13 +1,8 @@
 import { genkit } from 'genkit';
-import { retry } from 'genkit/model/middleware';
 import { googleAI } from '@genkit-ai/google-genai';
 import { quota } from '../../src/quota/index.js';
 import { RTDBQuotaStore } from '../../src/quota/rtdb.js';
 import * as admin from 'firebase-admin';
-
-const ai = genkit({
-  plugins: [googleAI()],
-});
 
 // Ensure FIREBASE_CONFIG or credentials are set
 if (!admin.apps.length) {
@@ -16,14 +11,19 @@ if (!admin.apps.length) {
 const db = admin.database();
 const quotaStore = new RTDBQuotaStore(db, 'quotas');
 
+const ai = genkit({
+  plugins: [
+    googleAI(),
+    quota.plugin({ store: quotaStore }),
+  ],
+});
+
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
     model: 'googleai/gemini-2.5-flash',
     prompt: input,
     use: [
-      retry({ initialDelayMs: 20000, maxRetries: 5, onError: console.log }),
       quota({
-        store: quotaStore,
         limit: 5,
         windowMs: 60000,
         key: 'example-key',

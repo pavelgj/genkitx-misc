@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-import { RouterInput } from './types.js';
+import type { RouterInput, RoutingCondition } from './types.js';
 
 /**
  * Checks if the request contains any media (images, video, audio).
@@ -36,3 +36,12 @@ export function hasTools(input: RouterInput): boolean {
 export function hasHistory(input: RouterInput): boolean {
   return input.request.messages.length > 1;
 }
+
+/**
+ * Registry of built-in matchers available by name.
+ */
+export const BUILTIN_MATCHERS: Record<string, RoutingCondition> = {
+  hasMedia,
+  hasTools,
+  hasHistory,
+};

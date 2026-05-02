@@ -25,12 +25,15 @@ This package has optional dependencies that are required only for specific stora
 
 ## Features
 
+All middleware in this package uses the new Genkit `generateMiddleware()` API. Non-serializable state (stores, functions) is provided via **plugin options**, while serializable configuration is provided per-use.
+
 ### Quota Middleware
 
 A flexible rate-limiting middleware for Genkit models.
 
 - **Pluggable Storage**: Supports Firestore, Realtime Database, PostgreSQL, Redis, and In-Memory storage.
 - **Configurable**: Set limits, window size, and custom keys (e.g., per-user).
+- **Named Key Functions**: Register custom key extraction logic via plugin options.
 - **Optimized**: Minimizes database writes when limits are exceeded.
 
 [📚 Read Quota Documentation](docs/quota.md)
@@ -41,15 +44,17 @@ A flexible rate-limiting middleware for Genkit models.
 import { quota } from 'genkitx-misc/quota';
 import { InMemoryQuotaStore } from 'genkitx-misc/quota/memory';
 
+const ai = genkit({
+  plugins: [
+    quota.plugin({ store: new InMemoryQuotaStore() }),
+  ],
+});
+
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   await ai.generate({
     // ...
     use: [
-      quota({
-        store: new InMemoryQuotaStore(),
-        limit: 10,
-        windowMs: 60000,
-      }),
+      quota({ limit: 10, windowMs: 60000 }),
     ],
   });
 });
@@ -61,6 +66,7 @@ A caching middleware for Genkit models to reduce costs and latency.
 
 - **Pluggable Storage**: Supports Firestore, PostgreSQL, Redis, and In-Memory storage.
 - **Flexible**: Customize cache keys and TTL.
+- **Named Key Functions**: Register custom key generation logic via plugin options.
 - **Fail-Open**: Ensures application stability even if cache storage fails.
 
 [📚 Read Cache Documentation](docs/cache.md)
@@ -71,14 +77,17 @@ A caching middleware for Genkit models to reduce costs and latency.
 import { cache } from 'genkitx-misc/cache';
 import { InMemoryCacheStore } from 'genkitx-misc/cache/memory';
 
+const ai = genkit({
+  plugins: [
+    cache.plugin({ store: new InMemoryCacheStore() }),
+  ],
+});
+
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   await ai.generate({
     // ...
     use: [
-      cache({
-        store: new InMemoryCacheStore(),
-        ttlMs: 60000,
-      }),
+      cache({ ttlMs: 60000 }),
     ],
   });
 });
@@ -88,24 +97,31 @@ const myFlow = ai.defineFlow('myFlow', async (input) => {
 
 A middleware that routes requests to different models based on configurable rules or classification strategies.
 
-- **Rule-Based**: Define prioritized rules (e.g. "if has media, use this model").
-- **Classifier-Based**: Use a function (or LLM) to classify requests and route accordingly.
-- **Built-in Predicates**: Helpers for common checks like `hasMedia`, `hasTools`.
+- **Rule-Based**: Define prioritized rules using named matchers (e.g. `'hasMedia'`, `'hasTools'`).
+- **Classifier-Based**: Register named classifier functions to route by request classification.
+- **Built-in Matchers**: `'hasMedia'`, `'hasTools'`, `'hasHistory'` are always available.
+- **Custom Matchers**: Register your own matchers via plugin options.
 
 [📚 Read Router Documentation](docs/router.md)
 
 #### Example
 
 ```typescript
-import { router, hasMedia, hasTools } from 'genkitx-misc/router';
+import { router } from 'genkitx-misc/router';
+
+const ai = genkit({
+  plugins: [
+    router.plugin(), // Built-in matchers are always available
+  ],
+});
 
 ai.generate({
   model: 'googleai/gemini-2.5-flash', // Default
   use: [
-    router(ai, {
+    router({
       rules: [
-        { when: hasMedia, use: 'googleai/gemini-2.5-flash' },
-        { when: hasTools, use: 'googleai/gemini-2.5-pro' },
+        { when: 'hasMedia', use: { name: 'googleai/gemini-2.5-pro' } },
+        { when: 'hasTools', use: { name: 'googleai/gemini-2.5-pro' } },
       ],
     }),
   ],

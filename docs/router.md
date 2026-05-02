@@ -4,98 +4,152 @@ The Router Middleware for Genkit allows you to dynamically route generation requ
 
 ## Installation
 
-The router middleware is included in the `genkitx-misc` package.
-
 ```bash
 npm install genkitx-misc
 ```
 
-## Usage
+## Setup
 
-### Basic Rule-Based Routing
-
-You can define a list of rules that are evaluated in order. The first rule that matches the request determines the model to use.
+The router middleware uses the Genkit `generateMiddleware()` API. You register it as a plugin (optionally with custom matchers and classifiers), then use the middleware per-request with serializable config.
 
 ```typescript
 import { genkit } from 'genkit';
-import { router, hasMedia, hasTools } from 'genkitx-misc/router';
+import { router } from 'genkitx-misc/router';
 
-const ai = genkit({ ... });
-
-const myFlow = ai.defineFlow('myFlow', async (input) => {
-  await ai.generate({
-    model: 'googleai/gemini-2.5-flash', // Default fallback model
-    use: [
-      router(ai, {
-        rules: [
-          // If the request contains images/video, use the Pro model
-          { when: hasMedia, use: 'googleai/gemini-2.5-pro' },
-          // If the request uses tools, use the Pro model
-          { when: hasTools, use: 'googleai/gemini-2.5-pro' },
-          // Otherwise, it falls through to the default model (Flash)
-        ]
-      })
-    ]
-  });
+const ai = genkit({
+  plugins: [
+    router.plugin(),
+  ],
 });
 ```
 
-### Custom Conditions
+## Usage
 
-You can write your own condition functions. A condition is a function that takes a `GenerateRequest` and returns a boolean (or Promise<boolean>).
+### Rule-Based Routing
+
+Define a list of rules that are evaluated in order. The first rule whose named matcher returns `true` determines the model to use. Built-in matchers: `'hasMedia'`, `'hasTools'`, `'hasHistory'`.
 
 ```typescript
-const isLongContext = (req) => {
-  // Example: check token count or character length
-  return req.messages.some((m) => m.content.some((p) => p.text && p.text.length > 10000));
-};
+const response = await ai.generate({
+  model: 'googleai/gemini-2.5-flash', // Default fallback model
+  prompt: input,
+  use: [
+    router({
+      rules: [
+        { when: 'hasMedia', use: { name: 'googleai/gemini-2.5-pro' } },
+        { when: 'hasTools', use: { name: 'googleai/gemini-2.5-pro' } },
+      ],
+    }),
+  ],
+});
+```
 
-router(ai, {
-  rules: [{ when: isLongContext, use: 'googleai/gemini-2.5-pro' }],
+### Custom Matchers
+
+Register custom matchers via plugin options. Matchers are functions that take a `RouterInput` (`{ request }`) and return a boolean (or `Promise<boolean>`).
+
+```typescript
+const ai = genkit({
+  plugins: [
+    router.plugin({
+      matchers: {
+        isLongContext: ({ request }) =>
+          request.messages.some((m) =>
+            m.content.some((p) => p.text && p.text.length > 10000)
+          ),
+      },
+    }),
+  ],
+});
+
+// Reference custom matcher by name:
+const response = await ai.generate({
+  model: 'googleai/gemini-2.5-flash',
+  prompt: input,
+  use: [
+    router({
+      rules: [
+        { when: 'isLongContext', use: { name: 'googleai/gemini-2.5-pro' } },
+      ],
+    }),
+  ],
 });
 ```
 
 ### Classification-Based Routing
 
-For more complex scenarios, you can use a classifier function to determine the "type" of request and map it to a model. This is ideal for using an LLM to decide the best model.
+For more complex scenarios, register a classifier function that determines the "type" of request and map classification keys to models.
 
 ```typescript
-router(ai, {
-  classifier: async (req) => {
-    // Your logic to classify request
-    // e.g., call a small model to classify as 'simple' or 'complex'
-    return 'simple';
-  },
-  models: {
-    simple: 'googleai/gemini-2.5-flash',
-    complex: 'googleai/gemini-2.5-pro',
-  },
+const ai = genkit({
+  plugins: [
+    router.plugin({
+      classifiers: {
+        byComplexity: async ({ request }) => {
+          // Your logic to classify request
+          const text = request.messages.at(-1)?.content[0]?.text || '';
+          return text.length > 1000 ? 'complex' : 'simple';
+        },
+      },
+    }),
+  ],
+});
+
+const response = await ai.generate({
+  model: 'googleai/gemini-2.5-flash',
+  prompt: input,
+  use: [
+    router({
+      classifier: 'byComplexity',
+      models: {
+        simple: { name: 'googleai/gemini-2.5-flash' },
+        complex: { name: 'googleai/gemini-2.5-pro' },
+      },
+    }),
+  ],
 });
 ```
 
-## API Reference
+## Configuration
 
-### `router(ai, options)`
+### Per-Use Config (serializable)
 
-Creates the middleware.
+The `router()` function accepts:
 
-- `ai`: The Genkit instance.
-- `options`: Configuration object.
+- `rules` *(optional)*: An array of routing rules, evaluated in order.
+  - `when`: Name of a registered matcher (string).
+  - `use`: `{ name: string, config?: any }` — the model to use if the condition matches.
+- `classifier` *(optional)*: Name of a registered classifier function (string).
+- `models` *(optional)*: `Record<string, { name: string, config?: any }>` — map of classification keys to models. Required if `classifier` is used.
 
-### `RouterOptions`
+### Plugin Options (non-serializable)
 
-- `rules`: An array of `RoutingRule` objects.
-  - `when`: `(input: RouterInput) => boolean | Promise<boolean>`
-  - `use`: The model to use if `when` returns true.
-- `classifier`: `(input: RouterInput) => string | Promise<string>`
-- `models`: `Record<string, ModelArgument>` - Map of keys returned by classifier to models.
+The `router.plugin()` function accepts:
 
-### `RouterInput`
+- `matchers` *(optional)*: `Record<string, RoutingCondition>` — custom matcher functions.
+- `classifiers` *(optional)*: `Record<string, Classifier>` — custom classifier functions.
 
-- `request`: The `GenerateRequest` object.
+## Built-in Matchers
 
-### Helper Predicates
+The following matchers are always available by name:
 
-- `hasMedia(input)`: Returns `true` if any message contains media parts.
-- `hasTools(input)`: Returns `true` if the request defines any tools.
-- `hasHistory(input)`: Returns `true` if the conversation has more than one message.
+| Name | Description |
+|------|-------------|
+| `'hasMedia'` | Returns `true` if any message contains media parts. |
+| `'hasTools'` | Returns `true` if the request defines any tools. |
+| `'hasHistory'` | Returns `true` if the conversation has more than one message. |
+
+## API Types
+
+```typescript
+// Matcher function signature
+type RoutingCondition = (input: RouterInput) => boolean | Promise<boolean>;
+
+// Classifier function signature
+type Classifier = (input: RouterInput) => string | Promise<string>;
+
+// Router input
+interface RouterInput {
+  request: GenerateRequest;
+}
+```

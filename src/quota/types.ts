@@ -26,38 +26,24 @@ export interface QuotaStore {
   increment(key: string, delta: number, windowMs: number, limit?: number): Promise<number>;
 }
 
-export interface QuotaOptions {
+/**
+ * A function that generates a quota key from the request.
+ */
+export type QuotaKeyFn = (args: { request: GenerateRequest }) => string;
+
+/**
+ * Plugin options for the quota middleware (non-serializable).
+ * These are provided when registering the middleware plugin.
+ */
+export interface QuotaPluginOptions {
   /**
    * The storage backend for keeping track of quotas.
    */
   store: QuotaStore;
 
   /**
-   * The maximum number of requests allowed within the window.
+   * Named key generation functions.
+   * Register custom key functions here, then reference them by name in the config.
    */
-  limit: number;
-
-  /**
-   * The duration of the quota window in milliseconds.
-   * @example 60000 // 1 minute
-   */
-  windowMs: number;
-
-  /**
-   * Key to use for the quota. Can be a static string or a function derived from the request.
-   * Defaults to 'global'.
-   */
-  key?: string | ((args: { request: GenerateRequest }) => string);
-
-  /**
-   * If true, only logs a warning when quota is exceeded, instead of throwing an error.
-   * Defaults to false.
-   */
-  logOnly?: boolean;
-
-  /**
-   * Whether to allow the request to proceed if the quota check fails (e.g. storage down).
-   * Defaults to false (block request on error).
-   */
-  failOpen?: boolean;
+  keyFns?: Record<string, QuotaKeyFn>;
 }

@@ -1,36 +1,102 @@
 # Quota Middleware
 
-The Quota middleware allows you to enforce rate limits on your Genkit models.
+The Quota middleware allows you to enforce rate limits on your Genkit model calls.
+
+## Installation
+
+```bash
+npm install genkitx-misc
+```
+
+## Setup
+
+The quota middleware uses the Genkit `generateMiddleware()` API. You register the storage backend as a plugin, then use the middleware per-request with serializable config.
+
+```typescript
+import { genkit } from 'genkit';
+import { quota } from 'genkitx-misc/quota';
+import { InMemoryQuotaStore } from 'genkitx-misc/quota/memory';
+
+const ai = genkit({
+  plugins: [
+    quota.plugin({ store: new InMemoryQuotaStore() }),
+  ],
+});
+```
+
+## Usage
+
+```typescript
+const response = await ai.generate({
+  model: 'googleai/gemini-2.5-flash',
+  prompt: 'Hello world',
+  use: [
+    quota({
+      limit: 10,
+      windowMs: 60000, // 1 minute
+    }),
+  ],
+});
+```
 
 ## Configuration
 
-The `quota` function accepts the following options:
+### Per-Use Config (serializable)
 
-- `store`: The storage backend instance (`QuotaStore`).
-- `limit`: The maximum number of requests allowed within the window.
-- `windowMs`: The duration of the window in milliseconds.
-- `key`: (Optional) A string or a function to generate a unique key for the quota. Defaults to `'global'`.
-- `logOnly`: (Optional) If `true`, logs a warning when quota is exceeded instead of throwing an error. Defaults to `false`.
-- `failOpen`: (Optional) If `true`, allows the request to proceed if the storage backend fails (e.g., database down). If `false` (default), throws an internal error.
+The `quota()` function accepts the following config options:
+
+- `limit` *(required)*: The maximum number of requests allowed within the window.
+- `windowMs` *(required)*: The duration of the quota window in milliseconds.
+- `key` *(optional)*: A static string key for the quota. Defaults to `'global'`.
+- `keyFn` *(optional)*: Name of a registered key generation function (from plugin options). Takes precedence over the static `key`.
+- `logOnly` *(optional)*: If `true`, logs a warning when quota is exceeded instead of throwing an error. Defaults to `false`.
+- `failOpen` *(optional)*: If `true`, allows the request to proceed if the storage backend fails. Defaults to `false` (fail-closed).
+
+### Plugin Options (non-serializable)
+
+The `quota.plugin()` function accepts:
+
+- `store` *(required)*: The storage backend instance (`QuotaStore`).
+- `keyFns` *(optional)*: A `Record<string, QuotaKeyFn>` mapping names to key generation functions. These can be referenced by name in the per-use `keyFn` config.
 
 ## Per-User Quota
 
-To enforce quotas per user, provide a key generation function that extracts the user ID from the request (e.g., from context or message metadata).
+To enforce quotas per user, use named key functions:
 
 ```typescript
-quota({
-  store: myStore,
-  limit: 5,
-  windowMs: 60000,
-  key: ({ request }) => {
-    // Example: Extract user ID from request messages or config
-    // Note: Ensure your flow/application passes this data to the model
-    return context.auth.userId || 'anon';
-  },
+const ai = genkit({
+  plugins: [
+    quota.plugin({
+      store: new InMemoryQuotaStore(),
+      keyFns: {
+        byUser: ({ request }) => {
+          // Extract user ID from request config or metadata
+          return request.config?.userId || 'anon';
+        },
+      },
+    }),
+  ],
+});
+
+// Reference the named key function:
+const response = await ai.generate({
+  model: 'my-model',
+  prompt: 'hello',
+  use: [quota({ limit: 5, windowMs: 60000, keyFn: 'byUser' })],
 });
 ```
 
 ## Storage Backends
+
+### In-Memory
+
+Uses an in-memory map. Useful for testing or single-instance deployments (not shared across instances).
+
+```typescript
+import { InMemoryQuotaStore } from 'genkitx-misc/quota/memory';
+
+const store = new InMemoryQuotaStore();
+```
 
 ### Firestore
 
@@ -41,7 +107,7 @@ import { FirestoreQuotaStore } from 'genkitx-misc/quota/firestore';
 import { Firestore } from '@google-cloud/firestore';
 
 const firestore = new Firestore();
-const store = new FirestoreQuotaStore(firestore, 'quotas_collection');
+const store = new FirestoreQuotaStore(firestore, 'quotas');
 ```
 
 ### Realtime Database
@@ -53,7 +119,7 @@ import { RTDBQuotaStore } from 'genkitx-misc/quota/rtdb';
 import * as admin from 'firebase-admin';
 
 const db = admin.database();
-const store = new RTDBQuotaStore(db, 'quotas_path');
+const store = new RTDBQuotaStore(db, 'quotas');
 ```
 
 Keys are automatically sanitized to replace invalid characters (e.g., `.`, `/`) with `_`.
@@ -66,18 +132,11 @@ Uses a PostgreSQL database table for rate limiting. Requires `pg`.
 import { PostgresQuotaStore } from 'genkitx-misc/quota/postgres';
 import { Pool } from 'pg';
 
-const pool = new Pool({
-  connectionString: 'postgresql://user:password@localhost:5432/mydb',
-});
-
-// Options:
-// - pool: pg.Pool instance
-// - tableName: (Optional) Table name, default 'quotas'
-// - noCreate: (Optional) If true, skips automatic table creation. Default false.
+const pool = new Pool({ ... });
 const store = new PostgresQuotaStore({ pool, tableName: 'my_quotas' });
 ```
 
-The store will automatically attempt to create the table if it doesn't exist (unless `noCreate` is true). The schema used is:
+The store automatically creates the table if it doesn't exist (unless `noCreate` is true):
 
 ```sql
 CREATE TABLE IF NOT EXISTS quotas (
@@ -95,90 +154,43 @@ Uses Redis for high-performance distributed rate limiting. Requires `ioredis`.
 import { RedisQuotaStore } from 'genkitx-misc/quota/redis';
 import Redis from 'ioredis';
 
-const redis = new Redis(); // or new Redis('redis://...')
+const redis = new Redis();
 const store = new RedisQuotaStore({ client: redis });
-```
-
-### In-Memory
-
-Uses an in-memory map. Useful for testing or single-instance deployments (not shared across instances).
-
-```typescript
-import { InMemoryQuotaStore } from 'genkitx-misc/quota/memory';
-
-const store = new InMemoryQuotaStore();
 ```
 
 ## Failure Handling
 
-By default, if the quota store fails (e.g., database connection error), the middleware throws an `INTERNAL` error to prevent bypassing limits during outages (`failClosed`).
+By default, if the quota store fails (e.g., database connection error), the middleware throws an `INTERNAL` error to prevent bypassing limits during outages (**fail-closed**).
 
-To allow traffic during storage outages (prioritizing availability over strict limits), set `failOpen: true`.
+To allow traffic during storage outages (prioritizing availability over strict limits), set `failOpen: true`:
 
 ```typescript
 quota({
-  // ...
+  limit: 10,
+  windowMs: 60000,
   failOpen: true,
-});
+})
 ```
 
-Note: Unless `logOnly` is `true`, if the store successfully reports that the limit is exceeded, the request will be blocked regardless of `failOpen` setting. `failOpen` only applies to storage errors.
+> **Note**: `failOpen` only applies to storage errors. If the store successfully reports that the limit is exceeded, the request will be blocked regardless (unless `logOnly` is `true`).
 
 ## Custom Quota Store
 
-You can implement your own storage backend by implementing the `QuotaStore` interface.
+Implement the `QuotaStore` interface:
 
 ```typescript
 import { QuotaStore } from 'genkitx-misc/quota';
 
 export class MyCustomStore implements QuotaStore {
   async increment(key: string, delta: number, windowMs: number, limit?: number): Promise<number> {
-    // Implementation here
+    // Atomically increment and return the new usage count.
+    // Must handle window expiration logic.
   }
 }
 ```
 
 ### Requirements
 
-1.  **Atomicity**: The `increment` operation MUST be atomic. It should read the current count, check expiration, increment, and write back in a safe manner (e.g., using database transactions or atomic increment operations) to prevent race conditions.
-2.  **Window Management**: The store is responsible for managing the time window logic.
-    - **Fixed Window Strategy** (Interval starts on first request):
-      - If the record does not exist or `expiresAt <= Date.now()` (window expired), reset the count to 0 (or `delta`) and set `expiresAt = Date.now() + windowMs`.
-      - If `expiresAt > Date.now()` (window active), increment the existing count.
-      - This strategy ensures users get the full `windowMs` duration, but the window start time depends on when the first request arrives.
-3.  **Optimization (Recommended)**: If the `limit` parameter is provided, check if the current usage (before incrementing) already meets or exceeds the limit.
-    - If `usage >= limit`: **Do not write to the database.** Return the simulated new usage (`usage + delta`) or just the current usage (as long as it is > limit). This prevents unnecessary write costs during attacks or heavy load.
-    - If `usage < limit`: Proceed with increment and write.
-
-### Example Implementation Logic
-
-```typescript
-async increment(key, delta, windowMs, limit) {
-  return db.transaction(async (tx) => {
-    const data = await tx.get(key);
-    const now = Date.now();
-
-    let usage = 0;
-    let expiresAt = now + windowMs;
-
-    if (data && data.expiresAt > now) {
-      usage = data.count;
-      expiresAt = data.expiresAt;
-    } else {
-      // Window expired or new, reset
-      usage = 0;
-      expiresAt = now + windowMs;
-    }
-
-    // Optimization: Fail fast without write if limit exceeded
-    if (limit !== undefined && usage >= limit) {
-      return usage + delta;
-    }
-
-    usage += delta;
-
-    tx.set(key, { count: usage, expiresAt });
-    return usage;
-  });
-}
-```
+1. **Atomicity**: The `increment` operation MUST be atomic (use transactions or atomic operations).
+2. **Window Management**: Use a fixed-window strategy — reset count when the window expires, increment within the active window.
+3. **Optimization**: If `limit` is provided and current usage already meets/exceeds it, skip the write and return the current usage. This prevents unnecessary write costs during attacks or heavy load.

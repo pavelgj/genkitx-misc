@@ -4,21 +4,17 @@ import { cache } from '../../src/cache/index.js';
 import { InMemoryCacheStore } from '../../src/cache/memory.js';
 
 const ai = genkit({
-  plugins: [googleAI()],
+  plugins: [
+    googleAI(),
+    cache.plugin({ store: new InMemoryCacheStore() }),
+  ],
 });
-
-const cacheStore = new InMemoryCacheStore();
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
     model: 'googleai/gemini-2.5-flash',
     prompt: input,
-    use: [
-      cache({
-        store: cacheStore,
-        ttlMs: 60000,
-      }),
-    ],
+    use: [cache({ ttlMs: 60000 })],
   });
   return response.text;
 });

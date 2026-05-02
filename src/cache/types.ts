@@ -31,21 +31,24 @@ export interface CacheStore {
   set(key: string, value: any, ttlMs: number): Promise<void>;
 }
 
-export interface CacheOptions {
+/**
+ * A function that generates a cache key from the request.
+ */
+export type CacheKeyFn = (args: { request: GenerateRequest }) => string;
+
+/**
+ * Plugin options for the cache middleware (non-serializable).
+ * These are provided when registering the middleware plugin.
+ */
+export interface CachePluginOptions {
   /**
    * The storage backend for the cache.
    */
   store: CacheStore;
 
   /**
-   * The time to live for cached entries in milliseconds.
-   * @example 60000 // 1 minute
+   * Named key generation functions.
+   * Register custom key functions here, then reference them by name in the config.
    */
-  ttlMs: number;
-
-  /**
-   * Key to use for the cache. Can be a static string or a function derived from the request.
-   * If not provided, a hash of the request will be used.
-   */
-  key?: string | ((args: { request: GenerateRequest }) => string);
+  keyFns?: Record<string, CacheKeyFn>;
 }
