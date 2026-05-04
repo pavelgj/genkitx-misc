@@ -228,6 +228,48 @@ use: [smartMaxTurns({ onDetection: 'wrapUp' })];
 use: [smartMaxTurns({ onDetection: 'pruneTools' })];
 ```
 
+### Context Compression Middleware
+
+A middleware that compresses conversation context when it grows too large, reducing token usage and costs in long-running agentic tool-calling loops. Triggers based on the previous turn's `inputTokens` — no custom token counter needed.
+
+- **Tool Response Truncation**: Trim verbose tool outputs to a character limit (cheapest, no LLM call).
+- **Message Truncation**: Drop oldest messages beyond a hard cap, preserving system messages.
+- **LLM Summarization**: Replace older messages with a condensed summary using a separate model.
+- **Token-Based Triggering**: Compression activates when `inputTokens` from the previous turn exceeds a threshold.
+- **Summary Caching**: Cached summaries are reused across turns to avoid redundant LLM calls.
+
+[📚 Read Context Compression Documentation](docs/context-compression.md)
+
+#### Example
+
+```typescript
+import { contextCompression } from 'genkitx-misc/context-compression';
+
+const ai = genkit({
+  plugins: [contextCompression.plugin()],
+});
+
+const response = await ai.generate({
+  model: 'googleai/gemini-flash-latest',
+  prompt: 'Research and summarize...',
+  tools: [searchTool],
+  use: [
+    contextCompression({
+      maxInputTokens: 80000,
+      toolResponses: { maxChars: 2000 },
+      summarize: {
+        model: { name: 'googleai/gemini-flash-lite-latest' },
+      },
+    }),
+  ],
+});
+
+const meta = (response.custom as any)?.contextCompression;
+if (meta) {
+  console.log(`Compressed: ${meta.messagesOriginal} → ${meta.messagesAfter} messages`);
+}
+```
+
 ## Examples
 
 Check the `examples/` directory for complete sample projects:
@@ -237,3 +279,4 @@ Check the `examples/` directory for complete sample projects:
 - [Router Examples](examples/router/)
 - [Soft Fail Examples](examples/soft-fail/)
 - [Smart Max Turns Examples](examples/smart-max-turns/)
+- [Context Compression Examples](examples/context-compression/)

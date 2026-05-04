@@ -99,6 +99,12 @@
       "require": "./lib/smart-max-turns/index.js",
       "import": "./lib/smart-max-turns/index.mjs",
       "default": "./lib/smart-max-turns/index.js"
+    },
+    "./context-compression": {
+      "types": "./lib/context-compression/index.d.ts",
+      "require": "./lib/context-compression/index.js",
+      "import": "./lib/context-compression/index.mjs",
+      "default": "./lib/context-compression/index.js"
     }
   },
   "typesVersions": {
@@ -144,6 +150,9 @@
       ],
       "smart-max-turns": [
         "lib/smart-max-turns/index.d.ts"
+      ],
+      "context-compression": [
+        "lib/context-compression/index.d.ts"
       ]
     }
   },
@@ -172,6 +181,7 @@
   },
   "devDependencies": {
     "@genkit-ai/google-genai": "^1.33.0",
+    "@genkit-ai/middleware": "^0.5.0",
     "@google-cloud/firestore": "^8.0.0",
     "@jest/globals": "^30.2.0",
     "@types/jest": "^29.0.0",
