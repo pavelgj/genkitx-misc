@@ -93,6 +93,12 @@
       "require": "./lib/soft-fail/index.js",
       "import": "./lib/soft-fail/index.mjs",
       "default": "./lib/soft-fail/index.js"
+    },
+    "./smart-max-turns": {
+      "types": "./lib/smart-max-turns/index.d.ts",
+      "require": "./lib/smart-max-turns/index.js",
+      "import": "./lib/smart-max-turns/index.mjs",
+      "default": "./lib/smart-max-turns/index.js"
     }
   },
   "typesVersions": {
@@ -135,6 +141,9 @@
       ],
       "soft-fail": [
         "lib/soft-fail/index.d.ts"
+      ],
+      "smart-max-turns": [
+        "lib/smart-max-turns/index.d.ts"
       ]
     }
   },

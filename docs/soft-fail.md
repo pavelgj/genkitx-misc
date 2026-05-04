@@ -94,30 +94,30 @@ if (response.finishReason === 'aborted') {
 
 The `softFail()` function accepts an optional config object. All fields default to `true` — pass `false` to disable specific behaviors.
 
-| Option         | Type       | Default     | Description                                                                                                   |
-| -------------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------- |
-| `model`        | `boolean`  | `true`      | Catch model call errors and return an aborted response.                                                       |
-| `tools`        | `boolean`  | `true`      | Catch tool execution errors and return them as tool responses.                                                |
-| `maxTurns`     | `boolean`  | `true`      | Handle max turns gracefully instead of throwing.                                                              |
-| `modelStatuses`| `string[]` | `undefined` | Only catch model errors with these `GenkitError` statuses. When `undefined`, all model errors are caught.     |
+| Option          | Type       | Default     | Description                                                                                               |
+| --------------- | ---------- | ----------- | --------------------------------------------------------------------------------------------------------- |
+| `model`         | `boolean`  | `true`      | Catch model call errors and return an aborted response.                                                   |
+| `tools`         | `boolean`  | `true`      | Catch tool execution errors and return them as tool responses.                                            |
+| `maxTurns`      | `boolean`  | `true`      | Handle max turns gracefully instead of throwing.                                                          |
+| `modelStatuses` | `string[]` | `undefined` | Only catch model errors with these `GenkitError` statuses. When `undefined`, all model errors are caught. |
 
 ### Examples
 
 ```typescript
 // Catch everything (default)
-use: [softFail()]
+use: [softFail()];
 
 // Only catch model errors with specific statuses
-use: [softFail({ modelStatuses: ['UNAVAILABLE', 'RESOURCE_EXHAUSTED'] })]
+use: [softFail({ modelStatuses: ['UNAVAILABLE', 'RESOURCE_EXHAUSTED'] })];
 
 // Disable tool error catching
-use: [softFail({ tools: false })]
+use: [softFail({ tools: false })];
 
 // Only handle max turns, let model/tool errors throw
-use: [softFail({ model: false, tools: false })]
+use: [softFail({ model: false, tools: false })];
 
 // Disable everything (middleware becomes a no-op)
-use: [softFail({ model: false, tools: false, maxTurns: false })]
+use: [softFail({ model: false, tools: false, maxTurns: false })];
 ```
 
 ## Interaction with Other Middleware
@@ -141,10 +141,7 @@ With this ordering, `retry()` and `fallback()` get their chance to recover from 
 `softFail` can catch quota exhaustion errors as aborted responses:
 
 ```typescript
-use: [
-  softFail({ modelStatuses: ['RESOURCE_EXHAUSTED'] }),
-  quota({ limit: 10, windowMs: 60000 }),
-]
+use: [softFail({ modelStatuses: ['RESOURCE_EXHAUSTED'] }), quota({ limit: 10, windowMs: 60000 })];
 ```
 
 ## Behavior Notes

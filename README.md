@@ -181,6 +181,53 @@ use: [softFail({ tools: false })];
 use: [softFail({ model: false, tools: false })];
 ```
 
+### Smart Max Turns Middleware
+
+A middleware that replaces rigid `maxTurns` counters with intelligent loop detection. Uses heuristic detectors (and optionally an LLM judge) to identify when an agent is stuck in a loop or making no progress, and terminates gracefully.
+
+- **Exact Loop Detection**: Catches identical tool calls repeated across consecutive turns.
+- **Response Repetition**: Catches tools returning identical outputs consecutively.
+- **LLM Judge**: Optional semantic analysis of conversation trajectory using a separate model.
+- **Termination Strategies**: Abort, wrap up (ask model for final answer), or prune looping tools.
+- **Configurable**: Tune thresholds, minimum turns runway, and termination behavior.
+
+[📚 Read Smart Max Turns Documentation](docs/smart-max-turns.md)
+
+#### Example
+
+```typescript
+import { smartMaxTurns } from 'genkitx-misc/smart-max-turns';
+
+const ai = genkit({
+  plugins: [smartMaxTurns.plugin()],
+});
+
+const response = await ai.generate({
+  model: 'googleai/gemini-flash-latest',
+  prompt: 'Research and summarize...',
+  tools: [searchTool, analyzeTool],
+  use: [smartMaxTurns()],
+});
+
+const meta = (response.custom as any)?.smartMaxTurns;
+if (meta) {
+  console.log(`Terminated: ${meta.reason}, turns: ${meta.turnsUsed}`);
+}
+```
+
+Choose a termination strategy:
+
+```typescript
+// Abort immediately (default)
+use: [smartMaxTurns({ onDetection: 'abort' })];
+
+// Ask the model to wrap up with a final answer
+use: [smartMaxTurns({ onDetection: 'wrapUp' })];
+
+// Remove looping tools, let the model continue with others
+use: [smartMaxTurns({ onDetection: 'pruneTools' })];
+```
+
 ## Examples
 
 Check the `examples/` directory for complete sample projects:
@@ -189,3 +236,4 @@ Check the `examples/` directory for complete sample projects:
 - [Cache Examples](examples/cache/)
 - [Router Examples](examples/router/)
 - [Soft Fail Examples](examples/soft-fail/)
+- [Smart Max Turns Examples](examples/smart-max-turns/)
