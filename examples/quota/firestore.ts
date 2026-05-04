@@ -9,10 +9,7 @@ const firestore = new Firestore();
 const quotaStore = new FirestoreQuotaStore(firestore, 'quotas');
 
 const ai = genkit({
-  plugins: [
-    googleAI(),
-    quota.plugin({ store: quotaStore }),
-  ],
+  plugins: [googleAI(), quota.plugin({ store: quotaStore })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {

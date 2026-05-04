@@ -18,9 +18,7 @@ import { cache } from 'genkitx-misc/cache';
 import { InMemoryCacheStore } from 'genkitx-misc/cache/memory';
 
 const ai = genkit({
-  plugins: [
-    cache.plugin({ store: new InMemoryCacheStore() }),
-  ],
+  plugins: [cache.plugin({ store: new InMemoryCacheStore() })],
 });
 ```
 
@@ -40,16 +38,16 @@ const response = await ai.generate({
 
 The `cache()` function accepts the following config options:
 
-- `ttlMs` *(required)*: The time-to-live for cached entries in milliseconds.
-- `key` *(optional)*: A static string key to use for the cache. If not provided, a SHA-256 hash of the request is used.
-- `keyFn` *(optional)*: Name of a registered key generation function (from plugin options). Takes precedence over the static `key`.
+- `ttlMs` _(required)_: The time-to-live for cached entries in milliseconds.
+- `key` _(optional)_: A static string key to use for the cache. If not provided, a SHA-256 hash of the request is used.
+- `keyFn` _(optional)_: Name of a registered key generation function (from plugin options). Takes precedence over the static `key`.
 
 ### Plugin Options (non-serializable)
 
 The `cache.plugin()` function accepts:
 
-- `store` *(required)*: The storage backend instance (`CacheStore`).
-- `keyFns` *(optional)*: A `Record<string, CacheKeyFn>` mapping names to key generation functions. These can be referenced by name in the per-use `keyFn` config.
+- `store` _(required)_: The storage backend instance (`CacheStore`).
+- `keyFns` _(optional)_: A `Record<string, CacheKeyFn>` mapping names to key generation functions. These can be referenced by name in the per-use `keyFn` config.
 
 ## Custom Key Generation
 

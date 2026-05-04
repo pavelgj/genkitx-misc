@@ -45,17 +45,13 @@ import { quota } from 'genkitx-misc/quota';
 import { InMemoryQuotaStore } from 'genkitx-misc/quota/memory';
 
 const ai = genkit({
-  plugins: [
-    quota.plugin({ store: new InMemoryQuotaStore() }),
-  ],
+  plugins: [quota.plugin({ store: new InMemoryQuotaStore() })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   await ai.generate({
     // ...
-    use: [
-      quota({ limit: 10, windowMs: 60000 }),
-    ],
+    use: [quota({ limit: 10, windowMs: 60000 })],
   });
 });
 ```
@@ -78,17 +74,13 @@ import { cache } from 'genkitx-misc/cache';
 import { InMemoryCacheStore } from 'genkitx-misc/cache/memory';
 
 const ai = genkit({
-  plugins: [
-    cache.plugin({ store: new InMemoryCacheStore() }),
-  ],
+  plugins: [cache.plugin({ store: new InMemoryCacheStore() })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   await ai.generate({
     // ...
-    use: [
-      cache({ ttlMs: 60000 }),
-    ],
+    use: [cache({ ttlMs: 60000 })],
   });
 });
 ```
@@ -158,30 +150,30 @@ if (response.finishReason === 'aborted') {
   if (details) {
     console.log('Failure reason:', details.reason); // 'model-error' | 'max-turns'
     console.log('Error message:', details.error);
-    console.log('Error status:', details.status);   // GenkitError status (model errors only)
+    console.log('Error status:', details.status); // GenkitError status (model errors only)
   }
 }
 ```
 
 The `response.custom.softFail` object contains:
 
-| Field    | Type                              | Description                                      |
-|----------|-----------------------------------|--------------------------------------------------|
-| `reason` | `'model-error'` \| `'max-turns'` | Which failure scenario triggered the soft fail.   |
-| `error`  | `string`                          | The original error message.                       |
-| `status` | `string \| undefined`            | The `GenkitError` status code (model errors only).|
+| Field    | Type                             | Description                                        |
+| -------- | -------------------------------- | -------------------------------------------------- |
+| `reason` | `'model-error'` \| `'max-turns'` | Which failure scenario triggered the soft fail.    |
+| `error`  | `string`                         | The original error message.                        |
+| `status` | `string \| undefined`            | The `GenkitError` status code (model errors only). |
 
 Selectively enable features or filter by error status:
 
 ```typescript
 // Only catch model errors with specific statuses
-use: [softFail({ modelStatuses: ['UNAVAILABLE', 'RESOURCE_EXHAUSTED'] })]
+use: [softFail({ modelStatuses: ['UNAVAILABLE', 'RESOURCE_EXHAUSTED'] })];
 
 // Disable tool error catching
-use: [softFail({ tools: false })]
+use: [softFail({ tools: false })];
 
 // Only handle max turns, let model/tool errors throw
-use: [softFail({ model: false, tools: false })]
+use: [softFail({ model: false, tools: false })];
 ```
 
 ## Examples

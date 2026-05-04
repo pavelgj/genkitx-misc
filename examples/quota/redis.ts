@@ -9,10 +9,7 @@ const redis = new Redis();
 const store = new RedisQuotaStore({ client: redis });
 
 const ai = genkit({
-  plugins: [
-    googleAI(),
-    quota.plugin({ store }),
-  ],
+  plugins: [googleAI(), quota.plugin({ store })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {

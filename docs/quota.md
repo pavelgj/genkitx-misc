@@ -18,9 +18,7 @@ import { quota } from 'genkitx-misc/quota';
 import { InMemoryQuotaStore } from 'genkitx-misc/quota/memory';
 
 const ai = genkit({
-  plugins: [
-    quota.plugin({ store: new InMemoryQuotaStore() }),
-  ],
+  plugins: [quota.plugin({ store: new InMemoryQuotaStore() })],
 });
 ```
 
@@ -45,19 +43,19 @@ const response = await ai.generate({
 
 The `quota()` function accepts the following config options:
 
-- `limit` *(required)*: The maximum number of requests allowed within the window.
-- `windowMs` *(required)*: The duration of the quota window in milliseconds.
-- `key` *(optional)*: A static string key for the quota. Defaults to `'global'`.
-- `keyFn` *(optional)*: Name of a registered key generation function (from plugin options). Takes precedence over the static `key`.
-- `logOnly` *(optional)*: If `true`, logs a warning when quota is exceeded instead of throwing an error. Defaults to `false`.
-- `failOpen` *(optional)*: If `true`, allows the request to proceed if the storage backend fails. Defaults to `false` (fail-closed).
+- `limit` _(required)_: The maximum number of requests allowed within the window.
+- `windowMs` _(required)_: The duration of the quota window in milliseconds.
+- `key` _(optional)_: A static string key for the quota. Defaults to `'global'`.
+- `keyFn` _(optional)_: Name of a registered key generation function (from plugin options). Takes precedence over the static `key`.
+- `logOnly` _(optional)_: If `true`, logs a warning when quota is exceeded instead of throwing an error. Defaults to `false`.
+- `failOpen` _(optional)_: If `true`, allows the request to proceed if the storage backend fails. Defaults to `false` (fail-closed).
 
 ### Plugin Options (non-serializable)
 
 The `quota.plugin()` function accepts:
 
-- `store` *(required)*: The storage backend instance (`QuotaStore`).
-- `keyFns` *(optional)*: A `Record<string, QuotaKeyFn>` mapping names to key generation functions. These can be referenced by name in the per-use `keyFn` config.
+- `store` _(required)_: The storage backend instance (`QuotaStore`).
+- `keyFns` _(optional)_: A `Record<string, QuotaKeyFn>` mapping names to key generation functions. These can be referenced by name in the per-use `keyFn` config.
 
 ## Per-User Quota
 
@@ -169,7 +167,7 @@ quota({
   limit: 10,
   windowMs: 60000,
   failOpen: true,
-})
+});
 ```
 
 > **Note**: `failOpen` only applies to storage errors. If the store successfully reports that the limit is exceeded, the request will be blocked regardless (unless `logOnly` is `true`).

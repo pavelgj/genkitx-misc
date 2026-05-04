@@ -33,9 +33,7 @@ export const SoftFailConfigSchema = z
     model: z
       .boolean()
       .optional()
-      .describe(
-        'Catch model call errors and return them as aborted responses.'
-      ),
+      .describe('Catch model call errors and return them as aborted responses.'),
     /**
      * Only catch model errors whose `GenkitError.status` is included in this
      * list. When `undefined` (the default), all model errors are caught.
@@ -43,9 +41,7 @@ export const SoftFailConfigSchema = z
     modelStatuses: z
       .array(z.string())
       .optional()
-      .describe(
-        'Only catch model errors with these statuses. Undefined means catch all.'
-      ),
+      .describe('Only catch model errors with these statuses. Undefined means catch all.'),
     /**
      * Catch tool execution errors and return them as tool response text instead
      * of throwing. The model sees the error and may recover on its own.
@@ -56,9 +52,7 @@ export const SoftFailConfigSchema = z
     tools: z
       .boolean()
       .optional()
-      .describe(
-        'Catch tool execution errors and return them as tool responses.'
-      ),
+      .describe('Catch tool execution errors and return them as tool responses.'),
     /**
      * When the maximum number of tool-call turns is reached, return the last
      * model response with `finishReason: 'aborted'` instead of throwing.
@@ -67,9 +61,7 @@ export const SoftFailConfigSchema = z
     maxTurns: z
       .boolean()
       .optional()
-      .describe(
-        'Handle max turns gracefully by returning aborted response instead of throwing.'
-      ),
+      .describe('Handle max turns gracefully by returning aborted response instead of throwing.'),
   })
   .passthrough();
 
@@ -109,138 +101,134 @@ export type SoftFailConfig = z.infer<typeof SoftFailConfigSchema>;
  * }
  * ```
  */
-export const softFail: GenerateMiddleware<typeof SoftFailConfigSchema> =
-  generateMiddleware(
-    {
-      name: 'softFail',
-      description:
-        'Prevents generate() from throwing on model errors, tool errors, ' +
-        'and max-turns limits by returning an aborted response instead.',
-      configSchema: SoftFailConfigSchema,
-    },
-    ({ config }) => {
-      const catchModel = config?.model !== false;
-      const catchTools = config?.tools !== false;
-      const catchMaxTurns = config?.maxTurns !== false;
-      const modelStatuses = config?.modelStatuses;
+export const softFail: GenerateMiddleware<typeof SoftFailConfigSchema> = generateMiddleware(
+  {
+    name: 'softFail',
+    description:
+      'Prevents generate() from throwing on model errors, tool errors, ' +
+      'and max-turns limits by returning an aborted response instead.',
+    configSchema: SoftFailConfigSchema,
+  },
+  ({ config }) => {
+    const catchModel = config?.model !== false;
+    const catchTools = config?.tools !== false;
+    const catchMaxTurns = config?.maxTurns !== false;
+    const modelStatuses = config?.modelStatuses;
 
-      // Shared across the model and generate hooks within a single middleware
-      // instance (which lives for one top-level generate call). The model hook
-      // stashes its synthetic response here so the generate hook can re-surface
-      // it if a secondary error (e.g. schema validation) occurs downstream.
-      let lastModelSoftFailResponse: GenerateResponseData | null = null;
+    // Shared across the model and generate hooks within a single middleware
+    // instance (which lives for one top-level generate call). The model hook
+    // stashes its synthetic response here so the generate hook can re-surface
+    // it if a secondary error (e.g. schema validation) occurs downstream.
+    let lastModelSoftFailResponse: GenerateResponseData | null = null;
 
-      function shouldCatchModelError(e: unknown): boolean {
-        if (!modelStatuses) return true; // catch all
-        if (e instanceof GenkitError) {
-          return modelStatuses.includes(e.status);
-        }
-        // Non-GenkitError (e.g. network error) — always catch
-        return true;
+    function shouldCatchModelError(e: unknown): boolean {
+      if (!modelStatuses) return true; // catch all
+      if (e instanceof GenkitError) {
+        return modelStatuses.includes(e.status);
       }
-
-      return {
-        // ----- model hook: catch model call errors -----
-        model: catchModel
-          ? async (req, ctx, next) => {
-              try {
-                return await next(req, ctx);
-              } catch (e) {
-                if (!shouldCatchModelError(e)) throw e;
-                const errorMessage =
-                  e instanceof Error ? e.message : String(e);
-                const response: GenerateResponseData = {
-                  finishReason: 'aborted',
-                  finishMessage: `Model call failed: ${errorMessage}`,
-                  message: {
-                    role: 'model',
-                    content: [{ text: `Error: ${errorMessage}` }],
-                  },
-                  custom: {
-                    softFail: {
-                      reason: 'model-error',
-                      error: errorMessage,
-                      status:
-                        e instanceof GenkitError ? e.status : undefined,
-                    },
-                  },
-                };
-                lastModelSoftFailResponse = response;
-                return response;
-              }
-            }
-          : undefined,
-
-        // ----- tool hook: catch tool execution errors -----
-        tool: catchTools
-          ? async (req, ctx, next) => {
-              try {
-                return await next(req, ctx);
-              } catch (e) {
-                // Never swallow intentional interrupts
-                if (
-                  e instanceof ToolInterruptError ||
-                  (e instanceof Error && e.name === 'ToolInterruptError')
-                ) {
-                  throw e;
-                }
-                const errorMessage =
-                  e instanceof Error ? e.message : String(e);
-                return {
-                  toolResponse: {
-                    name: req.toolRequest.name,
-                    ref: req.toolRequest.ref,
-                    output: `Tool '${req.toolRequest.name}' failed: ${errorMessage}`,
-                  },
-                };
-              }
-            }
-          : undefined,
-
-        // ----- generate hook: catch max-turns & safety net for model hook -----
-        generate:
-          catchMaxTurns || catchModel
-            ? async (envelope, ctx, next) => {
-                lastModelSoftFailResponse = null;
-                try {
-                  return await next(envelope, ctx);
-                } catch (e) {
-                  // (A) Max turns exceeded — the framework throws a
-                  //     GenerationResponseError with status ABORTED and embeds
-                  //     the model's last response in the error detail.
-                  if (
-                    catchMaxTurns &&
-                    e instanceof GenerationResponseError &&
-                    e.status === 'ABORTED'
-                  ) {
-                    const responseJson = e.detail.response.toJSON();
-                    return {
-                      ...responseJson,
-                      finishReason: 'aborted' as const,
-                      finishMessage: e.message,
-                      custom: {
-                        ...(responseJson.custom as Record<string, unknown> ?? {}),
-                        softFail: {
-                          reason: 'max-turns',
-                          error: e.message,
-                        },
-                      },
-                    };
-                  }
-
-                  // (B) Secondary error after a model soft-fail (e.g. schema
-                  //     validation on the synthetic message). Re-surface the
-                  //     stashed response.
-                  if (lastModelSoftFailResponse) {
-                    const resp = lastModelSoftFailResponse;
-                    lastModelSoftFailResponse = null;
-                    return resp;
-                  }
-
-                  throw e;
-                }
-              }
-            : undefined,
-      };
+      // Non-GenkitError (e.g. network error) — always catch
+      return true;
     }
-  );
+
+    return {
+      // ----- model hook: catch model call errors -----
+      model: catchModel
+        ? async (req, ctx, next) => {
+            try {
+              return await next(req, ctx);
+            } catch (e) {
+              if (!shouldCatchModelError(e)) throw e;
+              const errorMessage = e instanceof Error ? e.message : String(e);
+              const response: GenerateResponseData = {
+                finishReason: 'aborted',
+                finishMessage: `Model call failed: ${errorMessage}`,
+                message: {
+                  role: 'model',
+                  content: [{ text: `Error: ${errorMessage}` }],
+                },
+                custom: {
+                  softFail: {
+                    reason: 'model-error',
+                    error: errorMessage,
+                    status: e instanceof GenkitError ? e.status : undefined,
+                  },
+                },
+              };
+              lastModelSoftFailResponse = response;
+              return response;
+            }
+          }
+        : undefined,
+
+      // ----- tool hook: catch tool execution errors -----
+      tool: catchTools
+        ? async (req, ctx, next) => {
+            try {
+              return await next(req, ctx);
+            } catch (e) {
+              // Never swallow intentional interrupts
+              if (
+                e instanceof ToolInterruptError ||
+                (e instanceof Error && e.name === 'ToolInterruptError')
+              ) {
+                throw e;
+              }
+              const errorMessage = e instanceof Error ? e.message : String(e);
+              return {
+                toolResponse: {
+                  name: req.toolRequest.name,
+                  ref: req.toolRequest.ref,
+                  output: `Tool '${req.toolRequest.name}' failed: ${errorMessage}`,
+                },
+              };
+            }
+          }
+        : undefined,
+
+      // ----- generate hook: catch max-turns & safety net for model hook -----
+      generate:
+        catchMaxTurns || catchModel
+          ? async (envelope, ctx, next) => {
+              lastModelSoftFailResponse = null;
+              try {
+                return await next(envelope, ctx);
+              } catch (e) {
+                // (A) Max turns exceeded — the framework throws a
+                //     GenerationResponseError with status ABORTED and embeds
+                //     the model's last response in the error detail.
+                if (
+                  catchMaxTurns &&
+                  e instanceof GenerationResponseError &&
+                  e.status === 'ABORTED'
+                ) {
+                  const responseJson = e.detail.response.toJSON();
+                  return {
+                    ...responseJson,
+                    finishReason: 'aborted' as const,
+                    finishMessage: e.message,
+                    custom: {
+                      ...((responseJson.custom as Record<string, unknown>) ?? {}),
+                      softFail: {
+                        reason: 'max-turns',
+                        error: e.message,
+                      },
+                    },
+                  };
+                }
+
+                // (B) Secondary error after a model soft-fail (e.g. schema
+                //     validation on the synthetic message). Re-surface the
+                //     stashed response.
+                if (lastModelSoftFailResponse) {
+                  const resp = lastModelSoftFailResponse;
+                  lastModelSoftFailResponse = null;
+                  return resp;
+                }
+
+                throw e;
+              }
+            }
+          : undefined,
+    };
+  }
+);

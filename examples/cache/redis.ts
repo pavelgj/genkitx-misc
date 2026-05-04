@@ -8,10 +8,7 @@ const cacheStore = new RedisCacheStore({
 });
 
 const ai = genkit({
-  plugins: [
-    googleAI(),
-    cache.plugin({ store: cacheStore }),
-  ],
+  plugins: [googleAI(), cache.plugin({ store: cacheStore })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {

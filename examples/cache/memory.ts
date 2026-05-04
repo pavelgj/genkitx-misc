@@ -4,10 +4,7 @@ import { cache } from '../../src/cache/index.js';
 import { InMemoryCacheStore } from '../../src/cache/memory.js';
 
 const ai = genkit({
-  plugins: [
-    googleAI(),
-    cache.plugin({ store: new InMemoryCacheStore() }),
-  ],
+  plugins: [googleAI(), cache.plugin({ store: new InMemoryCacheStore() })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {

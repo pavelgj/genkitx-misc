@@ -8,10 +8,7 @@ const firestore = new Firestore();
 const cacheStore = new FirestoreCacheStore(firestore);
 
 const ai = genkit({
-  plugins: [
-    googleAI(),
-    cache.plugin({ store: cacheStore }),
-  ],
+  plugins: [googleAI(), cache.plugin({ store: cacheStore })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {

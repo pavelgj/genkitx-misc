@@ -17,9 +17,7 @@ import { genkit } from 'genkit';
 import { router } from 'genkitx-misc/router';
 
 const ai = genkit({
-  plugins: [
-    router.plugin(),
-  ],
+  plugins: [router.plugin()],
 });
 ```
 
@@ -54,9 +52,7 @@ const ai = genkit({
     router.plugin({
       matchers: {
         isLongContext: ({ request }) =>
-          request.messages.some((m) =>
-            m.content.some((p) => p.text && p.text.length > 10000)
-          ),
+          request.messages.some((m) => m.content.some((p) => p.text && p.text.length > 10000)),
       },
     }),
   ],
@@ -68,9 +64,7 @@ const response = await ai.generate({
   prompt: input,
   use: [
     router({
-      rules: [
-        { when: 'isLongContext', use: { name: 'googleai/gemini-2.5-pro' } },
-      ],
+      rules: [{ when: 'isLongContext', use: { name: 'googleai/gemini-2.5-pro' } }],
     }),
   ],
 });
@@ -116,27 +110,27 @@ const response = await ai.generate({
 
 The `router()` function accepts:
 
-- `rules` *(optional)*: An array of routing rules, evaluated in order.
+- `rules` _(optional)_: An array of routing rules, evaluated in order.
   - `when`: Name of a registered matcher (string).
   - `use`: `{ name: string, config?: any }` — the model to use if the condition matches.
-- `classifier` *(optional)*: Name of a registered classifier function (string).
-- `models` *(optional)*: `Record<string, { name: string, config?: any }>` — map of classification keys to models. Required if `classifier` is used.
+- `classifier` _(optional)_: Name of a registered classifier function (string).
+- `models` _(optional)_: `Record<string, { name: string, config?: any }>` — map of classification keys to models. Required if `classifier` is used.
 
 ### Plugin Options (non-serializable)
 
 The `router.plugin()` function accepts:
 
-- `matchers` *(optional)*: `Record<string, RoutingCondition>` — custom matcher functions.
-- `classifiers` *(optional)*: `Record<string, Classifier>` — custom classifier functions.
+- `matchers` _(optional)_: `Record<string, RoutingCondition>` — custom matcher functions.
+- `classifiers` _(optional)_: `Record<string, Classifier>` — custom classifier functions.
 
 ## Built-in Matchers
 
 The following matchers are always available by name:
 
-| Name | Description |
-|------|-------------|
-| `'hasMedia'` | Returns `true` if any message contains media parts. |
-| `'hasTools'` | Returns `true` if the request defines any tools. |
+| Name           | Description                                                   |
+| -------------- | ------------------------------------------------------------- |
+| `'hasMedia'`   | Returns `true` if any message contains media parts.           |
+| `'hasTools'`   | Returns `true` if the request defines any tools.              |
 | `'hasHistory'` | Returns `true` if the conversation has more than one message. |
 
 ## API Types

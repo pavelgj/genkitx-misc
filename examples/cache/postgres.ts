@@ -10,10 +10,7 @@ const pool = new Pool({
 const cacheStore = new PostgresCacheStore({ pool });
 
 const ai = genkit({
-  plugins: [
-    googleAI(),
-    cache.plugin({ store: cacheStore }),
-  ],
+  plugins: [googleAI(), cache.plugin({ store: cacheStore })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {

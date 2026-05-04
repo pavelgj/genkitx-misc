@@ -12,10 +12,7 @@ const db = admin.database();
 const quotaStore = new RTDBQuotaStore(db, 'quotas');
 
 const ai = genkit({
-  plugins: [
-    googleAI(),
-    quota.plugin({ store: quotaStore }),
-  ],
+  plugins: [googleAI(), quota.plugin({ store: quotaStore })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {

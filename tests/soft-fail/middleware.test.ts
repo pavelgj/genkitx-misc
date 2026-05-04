@@ -32,12 +32,9 @@ function uniqueName(prefix: string): string {
 describe('softFail – model errors', () => {
   it('returns an aborted response instead of throwing on model error', async () => {
     const ai = genkit({});
-    const pm = ai.defineModel(
-      { name: uniqueName('failModel') },
-      async () => {
-        throw new GenkitError({ status: 'UNAVAILABLE', message: 'server down' });
-      }
-    );
+    const pm = ai.defineModel({ name: uniqueName('failModel') }, async () => {
+      throw new GenkitError({ status: 'UNAVAILABLE', message: 'server down' });
+    });
 
     const result = await ai.generate({
       model: pm,
@@ -59,12 +56,9 @@ describe('softFail – model errors', () => {
 
   it('catches non-GenkitError model errors', async () => {
     const ai = genkit({});
-    const pm = ai.defineModel(
-      { name: uniqueName('failModel') },
-      async () => {
-        throw new Error('network timeout');
-      }
-    );
+    const pm = ai.defineModel({ name: uniqueName('failModel') }, async () => {
+      throw new Error('network timeout');
+    });
 
     const result = await ai.generate({
       model: pm,
@@ -85,15 +79,12 @@ describe('softFail – model errors', () => {
 
   it('filters model errors by modelStatuses — catches matching status', async () => {
     const ai = genkit({});
-    const pm = ai.defineModel(
-      { name: uniqueName('failModel') },
-      async () => {
-        throw new GenkitError({
-          status: 'RESOURCE_EXHAUSTED',
-          message: 'quota exceeded',
-        });
-      }
-    );
+    const pm = ai.defineModel({ name: uniqueName('failModel') }, async () => {
+      throw new GenkitError({
+        status: 'RESOURCE_EXHAUSTED',
+        message: 'quota exceeded',
+      });
+    });
 
     const result = await ai.generate({
       model: pm,
@@ -107,15 +98,12 @@ describe('softFail – model errors', () => {
 
   it('filters model errors by modelStatuses — re-throws non-matching status', async () => {
     const ai = genkit({});
-    const pm = ai.defineModel(
-      { name: uniqueName('failModel') },
-      async () => {
-        throw new GenkitError({
-          status: 'INVALID_ARGUMENT',
-          message: 'bad input',
-        });
-      }
-    );
+    const pm = ai.defineModel({ name: uniqueName('failModel') }, async () => {
+      throw new GenkitError({
+        status: 'INVALID_ARGUMENT',
+        message: 'bad input',
+      });
+    });
 
     await expect(
       ai.generate({
@@ -128,12 +116,9 @@ describe('softFail – model errors', () => {
 
   it('non-GenkitError passes through modelStatuses filter (always caught)', async () => {
     const ai = genkit({});
-    const pm = ai.defineModel(
-      { name: uniqueName('failModel') },
-      async () => {
-        throw new TypeError('something weird');
-      }
-    );
+    const pm = ai.defineModel({ name: uniqueName('failModel') }, async () => {
+      throw new TypeError('something weird');
+    });
 
     const result = await ai.generate({
       model: pm,
@@ -147,12 +132,9 @@ describe('softFail – model errors', () => {
 
   it('does not catch model errors when model: false', async () => {
     const ai = genkit({});
-    const pm = ai.defineModel(
-      { name: uniqueName('failModel') },
-      async () => {
-        throw new GenkitError({ status: 'UNAVAILABLE', message: 'oops' });
-      }
-    );
+    const pm = ai.defineModel({ name: uniqueName('failModel') }, async () => {
+      throw new GenkitError({ status: 'UNAVAILABLE', message: 'oops' });
+    });
 
     await expect(
       ai.generate({
@@ -185,28 +167,23 @@ describe('softFail – tool errors', () => {
     );
 
     let turn = 0;
-    const pm = ai.defineModel(
-      { name: uniqueName('toolModel') },
-      async () => {
-        turn++;
-        if (turn === 1) {
-          return {
-            message: {
-              role: 'model' as const,
-              content: [
-                { toolRequest: { name: 'exploding_tool', input: {} } },
-              ],
-            },
-          };
-        }
+    const pm = ai.defineModel({ name: uniqueName('toolModel') }, async () => {
+      turn++;
+      if (turn === 1) {
         return {
           message: {
             role: 'model' as const,
-            content: [{ text: 'recovered from tool error' }],
+            content: [{ toolRequest: { name: 'exploding_tool', input: {} } }],
           },
         };
       }
-    );
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'recovered from tool error' }],
+        },
+      };
+    });
 
     const result = await ai.generate({
       model: pm,
@@ -222,14 +199,10 @@ describe('softFail – tool errors', () => {
     // Check the tool response in message history contains the error
     const toolMessage = result.messages.find((m) => m.role === 'tool');
     expect(toolMessage).toBeTruthy();
-    const toolResponsePart = toolMessage!.content.find(
-      (p) => 'toolResponse' in p
-    );
+    const toolResponsePart = toolMessage!.content.find((p) => 'toolResponse' in p);
     expect(toolResponsePart).toBeTruthy();
     if (toolResponsePart && 'toolResponse' in toolResponsePart && toolResponsePart.toolResponse) {
-      expect(String(toolResponsePart.toolResponse.output)).toContain(
-        'tool went boom'
-      );
+      expect(String(toolResponsePart.toolResponse.output)).toContain('tool went boom');
     }
   });
 
@@ -249,28 +222,23 @@ describe('softFail – tool errors', () => {
     );
 
     let turn = 0;
-    const pm = ai.defineModel(
-      { name: uniqueName('toolModel') },
-      async () => {
-        turn++;
-        if (turn === 1) {
-          return {
-            message: {
-              role: 'model' as const,
-              content: [
-                { toolRequest: { name: 'interrupt_tool', input: {} } },
-              ],
-            },
-          };
-        }
+    const pm = ai.defineModel({ name: uniqueName('toolModel') }, async () => {
+      turn++;
+      if (turn === 1) {
         return {
           message: {
             role: 'model' as const,
-            content: [{ text: 'should not reach here' }],
+            content: [{ toolRequest: { name: 'interrupt_tool', input: {} } }],
           },
         };
       }
-    );
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'should not reach here' }],
+        },
+      };
+    });
 
     const result = await ai.generate({
       model: pm,
@@ -298,28 +266,23 @@ describe('softFail – tool errors', () => {
     );
 
     let turn = 0;
-    const pm = ai.defineModel(
-      { name: uniqueName('toolModel') },
-      async () => {
-        turn++;
-        if (turn === 1) {
-          return {
-            message: {
-              role: 'model' as const,
-              content: [
-                { toolRequest: { name: 'boom_tool', input: {} } },
-              ],
-            },
-          };
-        }
+    const pm = ai.defineModel({ name: uniqueName('toolModel') }, async () => {
+      turn++;
+      if (turn === 1) {
         return {
           message: {
             role: 'model' as const,
-            content: [{ text: 'done' }],
+            content: [{ toolRequest: { name: 'boom_tool', input: {} } }],
           },
         };
       }
-    );
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'done' }],
+        },
+      };
+    });
 
     await expect(
       ai.generate({
@@ -351,17 +314,12 @@ describe('softFail – max turns', () => {
     );
 
     // Model always requests a tool call — never returns text
-    const pm = ai.defineModel(
-      { name: uniqueName('loopModel') },
-      async () => ({
-        message: {
-          role: 'model' as const,
-          content: [
-            { toolRequest: { name: 'dummy_tool', input: {} } },
-          ],
-        },
-      })
-    );
+    const pm = ai.defineModel({ name: uniqueName('loopModel') }, async () => ({
+      message: {
+        role: 'model' as const,
+        content: [{ toolRequest: { name: 'dummy_tool', input: {} } }],
+      },
+    }));
 
     const result = await ai.generate({
       model: pm,
@@ -372,9 +330,7 @@ describe('softFail – max turns', () => {
     });
 
     expect(result.finishReason).toBe('aborted');
-    expect(result.finishMessage).toContain(
-      'Exceeded maximum tool call iterations'
-    );
+    expect(result.finishMessage).toContain('Exceeded maximum tool call iterations');
 
     // Verify error details in custom metadata
     const softFailMeta = (result.custom as any)?.softFail;
@@ -396,17 +352,12 @@ describe('softFail – max turns', () => {
       async () => 'ok'
     );
 
-    const pm = ai.defineModel(
-      { name: uniqueName('loopModel') },
-      async () => ({
-        message: {
-          role: 'model' as const,
-          content: [
-            { toolRequest: { name: 'dummy_tool2', input: {} } },
-          ],
-        },
-      })
-    );
+    const pm = ai.defineModel({ name: uniqueName('loopModel') }, async () => ({
+      message: {
+        role: 'model' as const,
+        content: [{ toolRequest: { name: 'dummy_tool2', input: {} } }],
+      },
+    }));
 
     await expect(
       ai.generate({
@@ -427,15 +378,12 @@ describe('softFail – max turns', () => {
 describe('softFail – passthrough', () => {
   it('is transparent when no errors occur', async () => {
     const ai = genkit({});
-    const pm = ai.defineModel(
-      { name: uniqueName('okModel') },
-      async () => ({
-        message: {
-          role: 'model' as const,
-          content: [{ text: 'all good' }],
-        },
-      })
-    );
+    const pm = ai.defineModel({ name: uniqueName('okModel') }, async () => ({
+      message: {
+        role: 'model' as const,
+        content: [{ text: 'all good' }],
+      },
+    }));
 
     const result = await ai.generate({
       model: pm,
@@ -461,28 +409,23 @@ describe('softFail – passthrough', () => {
     );
 
     let turn = 0;
-    const pm = ai.defineModel(
-      { name: uniqueName('toolModel') },
-      async () => {
-        turn++;
-        if (turn === 1) {
-          return {
-            message: {
-              role: 'model' as const,
-              content: [
-                { toolRequest: { name: 'good_tool', input: {} } },
-              ],
-            },
-          };
-        }
+    const pm = ai.defineModel({ name: uniqueName('toolModel') }, async () => {
+      turn++;
+      if (turn === 1) {
         return {
           message: {
             role: 'model' as const,
-            content: [{ text: 'used the tool successfully' }],
+            content: [{ toolRequest: { name: 'good_tool', input: {} } }],
           },
         };
       }
-    );
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'used the tool successfully' }],
+        },
+      };
+    });
 
     const result = await ai.generate({
       model: pm,
@@ -503,12 +446,9 @@ describe('softFail – passthrough', () => {
 describe('softFail – all disabled', () => {
   it('behaves like no middleware when all features are disabled', async () => {
     const ai = genkit({});
-    const pm = ai.defineModel(
-      { name: uniqueName('failModel') },
-      async () => {
-        throw new GenkitError({ status: 'UNAVAILABLE', message: 'down' });
-      }
-    );
+    const pm = ai.defineModel({ name: uniqueName('failModel') }, async () => {
+      throw new GenkitError({ status: 'UNAVAILABLE', message: 'down' });
+    });
 
     await expect(
       ai.generate({

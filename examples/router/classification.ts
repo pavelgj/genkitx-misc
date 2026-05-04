@@ -24,9 +24,7 @@ const ai = genkit({
       classifiers: {
         byLength: async ({ request }) => {
           // Simple heuristic: long prompts -> complex
-          const text = request.messages
-            .map((m) => m.content.map((c) => c.text).join(''))
-            .join('');
+          const text = request.messages.map((m) => m.content.map((c) => c.text).join('')).join('');
           return text.length > 100 ? 'complex' : 'simple';
         },
       },

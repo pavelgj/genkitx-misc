@@ -4,10 +4,7 @@ import { quota } from '../../src/quota/index.js';
 import { InMemoryQuotaStore } from '../../src/quota/memory.js';
 
 const ai = genkit({
-  plugins: [
-    googleAI(),
-    quota.plugin({ store: new InMemoryQuotaStore() }),
-  ],
+  plugins: [googleAI(), quota.plugin({ store: new InMemoryQuotaStore() })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {

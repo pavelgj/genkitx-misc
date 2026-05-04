@@ -43,10 +43,7 @@ export const RouterConfigSchema = z
      * Prioritized list of routing rules.
      * Evaluated in order. The first rule whose `when` matcher returns true will be used.
      */
-    rules: z
-      .array(RoutingRuleSchema)
-      .optional()
-      .describe('Prioritized list of routing rules.'),
+    rules: z.array(RoutingRuleSchema).optional().describe('Prioritized list of routing rules.'),
 
     /**
      * Name of a registered classifier function (from plugin options).
@@ -114,8 +111,7 @@ export const router: GenerateMiddleware<typeof RouterConfigSchema, RouterPluginO
   generateMiddleware(
     {
       name: 'router',
-      description:
-        'Routes requests to different models based on named matchers or classifiers.',
+      description: 'Routes requests to different models based on named matchers or classifiers.',
       configSchema: RouterConfigSchema,
     },
     ({ config, pluginConfig, ai }) => {
@@ -180,9 +176,7 @@ export const router: GenerateMiddleware<typeof RouterConfigSchema, RouterPluginO
           // 3. If we have a target model, use it directly
           if (targetModelRef) {
             try {
-              const modelAction = await ai.registry.lookupAction(
-                `/model/${targetModelRef.name}`
-              );
+              const modelAction = await ai.registry.lookupAction(`/model/${targetModelRef.name}`);
               if (modelAction) {
                 // Apply model-specific config from the routing rule if provided,
                 // otherwise fall through to the original request config.

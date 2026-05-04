@@ -11,10 +11,7 @@ const pool = new Pool({
 const store = new PostgresQuotaStore({ pool });
 
 const ai = genkit({
-  plugins: [
-    googleAI(),
-    quota.plugin({ store }),
-  ],
+  plugins: [googleAI(), quota.plugin({ store })],
 });
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
