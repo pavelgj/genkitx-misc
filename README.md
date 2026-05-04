@@ -128,6 +128,62 @@ ai.generate({
 });
 ```
 
+### Soft Fail Middleware
+
+A middleware that prevents `generate()` from throwing in common failure scenarios, returning an aborted response instead. This is especially useful in agentic tool-calling loops where a late failure would otherwise lose all accumulated progress.
+
+- **Model Errors**: Catches model call errors and returns a synthetic response with `finishReason: 'aborted'`.
+- **Tool Errors**: Catches tool execution errors and returns them as tool responses so the model can recover.
+- **Max Turns**: When the tool-calling turn limit is reached, returns the last response instead of throwing.
+- **Configurable**: Enable/disable each behavior independently; filter model errors by status.
+- **No Plugin Required**: Works directly in the `use` array — no plugin registration needed.
+
+#### Example
+
+```typescript
+import { softFail } from 'genkitx-misc/soft-fail';
+
+const response = await ai.generate({
+  model: 'googleai/gemini-2.5-flash',
+  prompt: 'Do something complex',
+  tools: [riskyTool],
+  use: [softFail()],
+});
+
+if (response.finishReason === 'aborted') {
+  console.log('Generation did not complete:', response.finishMessage);
+
+  // Access detailed error information via response.custom
+  const details = (response.custom as any)?.softFail;
+  if (details) {
+    console.log('Failure reason:', details.reason); // 'model-error' | 'max-turns'
+    console.log('Error message:', details.error);
+    console.log('Error status:', details.status);   // GenkitError status (model errors only)
+  }
+}
+```
+
+The `response.custom.softFail` object contains:
+
+| Field    | Type                              | Description                                      |
+|----------|-----------------------------------|--------------------------------------------------|
+| `reason` | `'model-error'` \| `'max-turns'` | Which failure scenario triggered the soft fail.   |
+| `error`  | `string`                          | The original error message.                       |
+| `status` | `string \| undefined`            | The `GenkitError` status code (model errors only).|
+
+Selectively enable features or filter by error status:
+
+```typescript
+// Only catch model errors with specific statuses
+use: [softFail({ modelStatuses: ['UNAVAILABLE', 'RESOURCE_EXHAUSTED'] })]
+
+// Disable tool error catching
+use: [softFail({ tools: false })]
+
+// Only handle max turns, let model/tool errors throw
+use: [softFail({ model: false, tools: false })]
+```
+
 ## Examples
 
 Check the `examples/` directory for complete sample projects:

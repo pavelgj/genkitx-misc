@@ -87,6 +87,12 @@
       "require": "./lib/router/index.js",
       "import": "./lib/router/index.mjs",
       "default": "./lib/router/index.js"
+    },
+    "./soft-fail": {
+      "types": "./lib/soft-fail/index.d.ts",
+      "require": "./lib/soft-fail/index.js",
+      "import": "./lib/soft-fail/index.mjs",
+      "default": "./lib/soft-fail/index.js"
     }
   },
   "typesVersions": {
@@ -126,6 +132,9 @@
       ],
       "cache/postgres": [
         "lib/cache/postgres.d.ts"
+      ],
+      "soft-fail": [
+        "lib/soft-fail/index.d.ts"
       ]
     }
   },
