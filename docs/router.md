@@ -29,13 +29,13 @@ Define a list of rules that are evaluated in order. The first rule whose named m
 
 ```typescript
 const response = await ai.generate({
-  model: 'googleai/gemini-2.5-flash', // Default fallback model
+  model: 'googleai/gemini-flash-latest', // Default fallback model
   prompt: input,
   use: [
     router({
       rules: [
-        { when: 'hasMedia', use: { name: 'googleai/gemini-2.5-pro' } },
-        { when: 'hasTools', use: { name: 'googleai/gemini-2.5-pro' } },
+        { when: 'hasMedia', use: { name: 'googleai/gemini-pro-latest' } },
+        { when: 'hasTools', use: { name: 'googleai/gemini-pro-latest' } },
       ],
     }),
   ],
@@ -60,11 +60,11 @@ const ai = genkit({
 
 // Reference custom matcher by name:
 const response = await ai.generate({
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-flash-latest',
   prompt: input,
   use: [
     router({
-      rules: [{ when: 'isLongContext', use: { name: 'googleai/gemini-2.5-pro' } }],
+      rules: [{ when: 'isLongContext', use: { name: 'googleai/gemini-pro-latest' } }],
     }),
   ],
 });
@@ -90,14 +90,14 @@ const ai = genkit({
 });
 
 const response = await ai.generate({
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-flash-latest',
   prompt: input,
   use: [
     router({
       classifier: 'byComplexity',
       models: {
-        simple: { name: 'googleai/gemini-2.5-flash' },
-        complex: { name: 'googleai/gemini-2.5-pro' },
+        simple: { name: 'googleai/gemini-flash-latest' },
+        complex: { name: 'googleai/gemini-pro-latest' },
       },
     }),
   ],

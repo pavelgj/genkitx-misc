@@ -26,15 +26,15 @@ const ai = genkit({
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
-    model: 'googleai/gemini-2.5-flash', // Default fallback
+    model: 'googleai/gemini-flash-latest', // Default fallback
     prompt: input,
     use: [
       router({
         rules: [
           // Use Pro model for requests with media
-          { when: 'hasMedia', use: { name: 'googleai/gemini-2.5-pro' } },
+          { when: 'hasMedia', use: { name: 'googleai/gemini-pro-latest' } },
           // Use Pro model for requests with tools
-          { when: 'hasTools', use: { name: 'googleai/gemini-2.5-pro' } },
+          { when: 'hasTools', use: { name: 'googleai/gemini-pro-latest' } },
         ],
       }),
     ],

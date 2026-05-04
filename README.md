@@ -108,12 +108,12 @@ const ai = genkit({
 });
 
 ai.generate({
-  model: 'googleai/gemini-2.5-flash', // Default
+  model: 'googleai/gemini-flash-latest', // Default
   use: [
     router({
       rules: [
-        { when: 'hasMedia', use: { name: 'googleai/gemini-2.5-pro' } },
-        { when: 'hasTools', use: { name: 'googleai/gemini-2.5-pro' } },
+        { when: 'hasMedia', use: { name: 'googleai/gemini-pro-latest' } },
+        { when: 'hasTools', use: { name: 'googleai/gemini-pro-latest' } },
       ],
     }),
   ],
@@ -128,15 +128,20 @@ A middleware that prevents `generate()` from throwing in common failure scenario
 - **Tool Errors**: Catches tool execution errors and returns them as tool responses so the model can recover.
 - **Max Turns**: When the tool-calling turn limit is reached, returns the last response instead of throwing.
 - **Configurable**: Enable/disable each behavior independently; filter model errors by status.
-- **No Plugin Required**: Works directly in the `use` array — no plugin registration needed.
+
+[📚 Read Soft Fail Documentation](docs/soft-fail.md)
 
 #### Example
 
 ```typescript
 import { softFail } from 'genkitx-misc/soft-fail';
 
+const ai = genkit({
+  plugins: [softFail.plugin()],
+});
+
 const response = await ai.generate({
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-flash-latest',
   prompt: 'Do something complex',
   tools: [riskyTool],
   use: [softFail()],
@@ -183,3 +188,4 @@ Check the `examples/` directory for complete sample projects:
 - [Quota Examples](examples/quota/)
 - [Cache Examples](examples/cache/)
 - [Router Examples](examples/router/)
+- [Soft Fail Examples](examples/soft-fail/)

@@ -33,7 +33,7 @@ ai = genkit({
 
           // Use a lightweight model for classification
           const result = await ai.generate({
-            model: 'googleai/gemini-2.5-flash-lite',
+            model: 'googleai/gemini-flash-latest-lite',
             prompt: `Classify the following prompt as either "simple" (math, greeting, short question) or "complex" (coding, creative writing, reasoning).\n\nPrompt: ${text}\n\nClassification:`,
             output: {
               format: 'enum',
@@ -49,14 +49,14 @@ ai = genkit({
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
-    model: 'googleai/gemini-2.5-flash',
+    model: 'googleai/gemini-flash-latest',
     prompt: input,
     use: [
       router({
         classifier: 'llmClassifier',
         models: {
-          simple: { name: 'googleai/gemini-2.5-flash' },
-          complex: { name: 'googleai/gemini-2.5-pro' },
+          simple: { name: 'googleai/gemini-flash-latest' },
+          complex: { name: 'googleai/gemini-pro-latest' },
         },
       }),
     ],

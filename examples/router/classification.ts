@@ -34,14 +34,14 @@ const ai = genkit({
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
-    model: 'googleai/gemini-2.5-flash',
+    model: 'googleai/gemini-flash-latest',
     prompt: input,
     use: [
       router({
         classifier: 'byLength',
         models: {
-          simple: { name: 'googleai/gemini-2.5-flash' },
-          complex: { name: 'googleai/gemini-2.5-pro' },
+          simple: { name: 'googleai/gemini-flash-latest' },
+          complex: { name: 'googleai/gemini-pro-latest' },
         },
       }),
     ],

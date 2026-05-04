@@ -94,13 +94,13 @@ export type RouterConfig = z.infer<typeof RouterConfigSchema>;
  *
  * // Use in generate:
  * const response = await ai.generate({
- *   model: 'googleai/gemini-2.5-flash',
+ *   model: 'googleai/gemini-flash-latest',
  *   prompt: 'hello',
  *   use: [
  *     router({
  *       rules: [
- *         { when: 'hasMedia', use: { name: 'googleai/gemini-2.5-pro' } },
- *         { when: 'isLongContext', use: { name: 'googleai/gemini-2.5-pro' } },
+ *         { when: 'hasMedia', use: { name: 'googleai/gemini-pro-latest' } },
+ *         { when: 'isLongContext', use: { name: 'googleai/gemini-pro-latest' } },
  *       ],
  *     }),
  *   ],

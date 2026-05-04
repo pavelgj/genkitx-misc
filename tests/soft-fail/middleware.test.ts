@@ -440,6 +440,41 @@ describe('softFail – passthrough', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Secondary error recovery (model soft-fail + schema validation)
+// ---------------------------------------------------------------------------
+
+describe('softFail – secondary error recovery', () => {
+  it('recovers from schema validation failure after model soft-fail', async () => {
+    const ai = genkit({});
+
+    // Model throws on every call — the soft-fail model hook catches it and
+    // returns a synthetic response, but that response won't match the output
+    // schema, causing the framework to throw a secondary validation error.
+    // The generate hook should catch that and re-surface the stashed response.
+    const pm = ai.defineModel({ name: uniqueName('schemaFailModel') }, async () => {
+      throw new GenkitError({ status: 'UNAVAILABLE', message: 'model is down' });
+    });
+
+    const result = await ai.generate({
+      model: pm,
+      prompt: 'give me structured data',
+      output: { schema: z.object({ name: z.string(), age: z.number() }) },
+      use: [softFail()],
+    });
+
+    // The generate hook should have caught the schema validation error and
+    // returned the stashed model-error response instead of throwing.
+    expect(result.finishReason).toBe('aborted');
+    expect(result.finishMessage).toContain('model is down');
+
+    const softFailMeta = (result.custom as any)?.softFail;
+    expect(softFailMeta).toBeDefined();
+    expect(softFailMeta.reason).toBe('model-error');
+    expect(softFailMeta.status).toBe('UNAVAILABLE');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // All features disabled
 // ---------------------------------------------------------------------------
 

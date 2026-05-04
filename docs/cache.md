@@ -26,7 +26,7 @@ const ai = genkit({
 
 ```typescript
 const response = await ai.generate({
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-flash-latest',
   prompt: 'Hello world',
   use: [cache({ ttlMs: 60000 })],
 });

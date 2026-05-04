@@ -89,8 +89,12 @@ export type SoftFailConfig = z.infer<typeof SoftFailConfigSchema>;
  * ```ts
  * import { softFail } from 'genkitx-misc/soft-fail';
  *
+ * const ai = genkit({
+ *   plugins: [softFail.plugin()],
+ * });
+ *
  * const response = await ai.generate({
- *   model: googleAI.model('gemini-2.5-flash'),
+ *   model: googleAI.model('gemini-flash-latest'),
  *   prompt: 'Do something complex',
  *   tools: [riskyTool],
  *   use: [softFail()],
@@ -116,9 +120,11 @@ export const softFail: GenerateMiddleware<typeof SoftFailConfigSchema> = generat
     const modelStatuses = config?.modelStatuses;
 
     // Shared across the model and generate hooks within a single middleware
-    // instance (which lives for one top-level generate call). The model hook
-    // stashes its synthetic response here so the generate hook can re-surface
-    // it if a secondary error (e.g. schema validation) occurs downstream.
+    // instance. The `generateMiddleware` factory runs once per top-level
+    // `generate()` call, so this closure is never shared across concurrent
+    // calls — each call gets its own instance. The model hook stashes its
+    // synthetic response here so the generate hook can re-surface it if a
+    // secondary error (e.g. schema validation) occurs downstream.
     let lastModelSoftFailResponse: GenerateResponseData | null = null;
 
     function shouldCatchModelError(e: unknown): boolean {
@@ -126,7 +132,14 @@ export const softFail: GenerateMiddleware<typeof SoftFailConfigSchema> = generat
       if (e instanceof GenkitError) {
         return modelStatuses.includes(e.status);
       }
-      // Non-GenkitError (e.g. network error) — always catch
+      // Non-GenkitError (e.g. network error from a model plugin that doesn't
+      // wrap errors in GenkitError) — always catch, but warn so users know
+      // an untyped error slipped through the status filter.
+      console.warn(
+        `[softFail] Caught non-GenkitError while modelStatuses filter is active. ` +
+          `The error will be caught because it has no status to match against. ` +
+          `Error: ${e instanceof Error ? e.message : String(e)}`
+      );
       return true;
     }
 

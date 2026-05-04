@@ -14,7 +14,7 @@ const ai = genkit({
 
 const myFlow = ai.defineFlow('myFlow', async (input) => {
   const response = await ai.generate({
-    model: 'googleai/gemini-2.5-flash',
+    model: 'googleai/gemini-flash-latest',
     prompt: input,
     use: [
       quota({
