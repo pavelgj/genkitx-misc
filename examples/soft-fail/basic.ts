@@ -22,6 +22,22 @@ const riskyTool = ai.defineTool(
   }
 );
 
+// A tool that almost certainly will fail
+const extraRiskyTool = ai.defineTool(
+  {
+    name: 'extraRiskyTool',
+    description: 'A tool that sometimes fails',
+    inputSchema: z.object({ query: z.string() }),
+    outputSchema: z.string(),
+  },
+  async ({ query }) => {
+    if (Math.random() < 0.95) {
+      throw new Error('Random failure!');
+    }
+    return `Result for: ${query}`;
+  }
+);
+
 (async () => {
   try {
     // Basic usage — catch all errors gracefully
@@ -58,7 +74,7 @@ const riskyTool = ai.defineTool(
     const response3 = await ai.generate({
       model: 'googleai/gemini-flash-latest',
       prompt: 'Keep using the tool until you get a result',
-      tools: [riskyTool],
+      tools: [extraRiskyTool],
       maxTurns: 3,
       use: [softFail()],
     });
