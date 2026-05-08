@@ -21,7 +21,7 @@ const searchTool = ai.defineTool(
   }
 );
 
-// A tool that reads documents
+// A tool that reads documents (called repeatedly — deduplication helps here)
 const readTool = ai.defineTool(
   {
     name: 'readDocument',
@@ -58,8 +58,8 @@ const readTool = ai.defineTool(
       console.log('Compression applied:', meta1);
     }
 
-    // --- With message cap ---
-    console.log('\n--- With Message Cap ---');
+    // --- With deduplication + message cap ---
+    console.log('\n--- With Deduplication + Message Cap ---');
     const response2 = await ai.generate({
       model: 'googleai/gemini-flash-latest',
       prompt:
@@ -69,6 +69,7 @@ const readTool = ai.defineTool(
       use: [
         contextCompression({
           maxInputTokens: 2000,
+          deduplicateToolResponses: { matchBy: 'name-and-input' },
           toolResponses: { maxChars: 100, preserveRecent: 3 },
           maxMessages: 20,
         }),
@@ -83,7 +84,7 @@ const readTool = ai.defineTool(
     }
 
     // --- Full: All strategies with summarization ---
-    console.log('\n--- Full Compression with Summarization ---');
+    console.log('\n--- Full Compression with All Strategies ---');
     const response3 = await ai.generate({
       model: 'googleai/gemini-flash-latest',
       prompt:
@@ -93,8 +94,11 @@ const readTool = ai.defineTool(
       use: [
         contextCompression({
           maxInputTokens: 2000,
+          maxToolResponseChars: 400000,
+          deduplicateToolResponses: { matchBy: 'name-and-input' },
           toolResponses: { maxChars: 100 },
           maxMessages: 30,
+          skipSummarizationThreshold: 0.3,
           summarize: {
             model: { name: 'googleai/gemini-flash-lite-latest' },
             preserveRecent: 2,

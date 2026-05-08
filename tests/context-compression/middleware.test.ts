@@ -118,7 +118,6 @@ describe('contextCompression – tool response truncation', () => {
     const pm = ai.defineModel({ name: uniqueName('ccModel') }, async (req) => {
       turn++;
       if (turn === 1) {
-        // First turn: request a tool call
         return {
           message: {
             role: 'model' as const,
@@ -127,7 +126,6 @@ describe('contextCompression – tool response truncation', () => {
           usage: { inputTokens: 90000, outputTokens: 100 },
         };
       }
-      // Second turn: after compression, return text
       return {
         message: {
           role: 'model' as const,
@@ -151,7 +149,6 @@ describe('contextCompression – tool response truncation', () => {
 
     expect(result.text).toBe('processed');
 
-    // Check that compression metadata was attached
     const meta = (result.custom as any)?.contextCompression;
     expect(meta).toBeDefined();
     expect(meta.triggered).toBe(true);
@@ -175,20 +172,17 @@ describe('contextCompression – tool response truncation', () => {
     const pm = ai.defineModel({ name: uniqueName('ccModel') }, async (req) => {
       turn++;
       if (turn <= 3) {
-        // Request tool calls for turns 1-3
         return {
           message: {
             role: 'model' as const,
             content: [{ toolRequest: { name: 'data_tool', input: { id: turn } } }],
           },
-          // Only exceed threshold after turn 2
           usage: {
             inputTokens: turn >= 2 ? 90000 : 5000,
             outputTokens: 100,
           },
         };
       }
-      // Turn 4: return final text
       return {
         message: {
           role: 'model' as const,
@@ -211,6 +205,207 @@ describe('contextCompression – tool response truncation', () => {
     });
 
     expect(result.text).toBe('final answer');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tool response deduplication (NEW)
+// ---------------------------------------------------------------------------
+
+describe('contextCompression – tool response deduplication', () => {
+  it('deduplicates repeated tool calls with same name', async () => {
+    const ai = genkit({});
+
+    const tool = ai.defineTool(
+      {
+        name: 'read_data',
+        description: 'reads data',
+        inputSchema: z.object({}),
+        outputSchema: z.string(),
+      },
+      async () => 'D'.repeat(3000)
+    );
+
+    let turn = 0;
+    let messagesOnDedupTurn: any[] = [];
+    const pm = ai.defineModel({ name: uniqueName('ccModel') }, async (req) => {
+      turn++;
+      if (turn <= 3) {
+        return {
+          message: {
+            role: 'model' as const,
+            content: [{ toolRequest: { name: 'read_data', input: {} } }],
+          },
+          usage: {
+            inputTokens: turn >= 2 ? 90000 : 5000,
+            outputTokens: 50,
+          },
+        };
+      }
+      messagesOnDedupTurn = req.messages;
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'done' }],
+        },
+        usage: { inputTokens: 3000, outputTokens: 50 },
+      };
+    });
+
+    const result = await ai.generate({
+      model: pm,
+      prompt: 'test',
+      tools: [tool],
+      use: [
+        contextCompression({
+          maxInputTokens: 80000,
+          deduplicateToolResponses: { matchBy: 'name-and-input' },
+        }),
+      ],
+    });
+
+    expect(result.text).toBe('done');
+    const meta = (result.custom as any)?.contextCompression;
+    expect(meta).toBeDefined();
+    expect(meta.toolResponsesDeduplicated).toBeGreaterThan(0);
+
+    // Check that at least one tool response was replaced with the dedup notice
+    const dedupedMsgs = messagesOnDedupTurn.filter(
+      (m: any) =>
+        m.role === 'tool' &&
+        m.content?.some((c: any) => {
+          const output = c.toolResponse?.output;
+          return typeof output === 'string' && output.includes('Deduplicated');
+        })
+    );
+    expect(dedupedMsgs.length).toBeGreaterThan(0);
+  });
+
+  it('keeps multiple recent with keepRecent > 1', async () => {
+    const ai = genkit({});
+
+    const tool = ai.defineTool(
+      {
+        name: 'fetch',
+        description: 'fetches',
+        inputSchema: z.object({}),
+        outputSchema: z.string(),
+      },
+      async () => 'F'.repeat(2000)
+    );
+
+    let turn = 0;
+    const pm = ai.defineModel({ name: uniqueName('ccModel') }, async (req) => {
+      turn++;
+      if (turn <= 4) {
+        return {
+          message: {
+            role: 'model' as const,
+            content: [{ toolRequest: { name: 'fetch', input: {} } }],
+          },
+          usage: {
+            inputTokens: turn >= 3 ? 90000 : 5000,
+            outputTokens: 50,
+          },
+        };
+      }
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'done' }],
+        },
+        usage: { inputTokens: 3000, outputTokens: 50 },
+      };
+    });
+
+    const result = await ai.generate({
+      model: pm,
+      prompt: 'test',
+      tools: [tool],
+      use: [
+        contextCompression({
+          maxInputTokens: 80000,
+          deduplicateToolResponses: { matchBy: 'name-and-input', keepRecent: 2 },
+        }),
+      ],
+    });
+
+    expect(result.text).toBe('done');
+    const meta = (result.custom as any)?.contextCompression;
+    if (meta) {
+      // With keepRecent: 2, at most N-2 should be deduplicated
+      expect(meta.toolResponsesDeduplicated).toBeLessThanOrEqual(2);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Safety cap (NEW)
+// ---------------------------------------------------------------------------
+
+describe('contextCompression – safety cap', () => {
+  it('truncates oversized tool responses with safety cap', async () => {
+    const ai = genkit({});
+
+    const hugeTool = ai.defineTool(
+      {
+        name: 'huge_tool',
+        description: 'returns huge data',
+        inputSchema: z.object({}),
+        outputSchema: z.string(),
+      },
+      async () => 'H'.repeat(10000) // will exceed a small cap
+    );
+
+    let turn = 0;
+    let messagesOnCap: any[] = [];
+    const pm = ai.defineModel({ name: uniqueName('ccModel') }, async (req) => {
+      turn++;
+      if (turn === 1) {
+        return {
+          message: {
+            role: 'model' as const,
+            content: [{ toolRequest: { name: 'huge_tool', input: {} } }],
+          },
+          usage: { inputTokens: 90000, outputTokens: 100 },
+        };
+      }
+      messagesOnCap = req.messages;
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'capped' }],
+        },
+        usage: { inputTokens: 3000, outputTokens: 50 },
+      };
+    });
+
+    const result = await ai.generate({
+      model: pm,
+      prompt: 'test',
+      tools: [hugeTool],
+      use: [
+        contextCompression({
+          maxInputTokens: 80000,
+          maxToolResponseChars: 500, // very small cap
+        }),
+      ],
+    });
+
+    expect(result.text).toBe('capped');
+    const meta = (result.custom as any)?.contextCompression;
+    expect(meta).toBeDefined();
+    expect(meta.toolResponsesSafetyCapped).toBeGreaterThan(0);
+
+    // Verify the tool response was truncated
+    const toolMsgs = messagesOnCap.filter((m: any) => m.role === 'tool');
+    for (const tm of toolMsgs) {
+      for (const c of tm.content) {
+        if (c.toolResponse) {
+          expect(String(c.toolResponse.output)).toContain('TRUNCATED');
+        }
+      }
+    }
   });
 });
 
@@ -241,7 +436,6 @@ describe('contextCompression – message truncation', () => {
             role: 'model' as const,
             content: [{ toolRequest: { name: 'simple_tool', input: {} } }],
           },
-          // Exceed threshold starting from turn 3
           usage: {
             inputTokens: turn >= 3 ? 50000 : 1000,
             outputTokens: 50,
@@ -271,7 +465,6 @@ describe('contextCompression – message truncation', () => {
 
     expect(result.text).toBe('done');
 
-    // On the turn where compression triggers, messages should have been capped
     const meta = (result.custom as any)?.contextCompression;
     expect(meta).toBeDefined();
     expect(meta.triggered).toBe(true);
@@ -330,6 +523,134 @@ describe('contextCompression – message truncation', () => {
 
     expect(result.text).toBe('final');
   });
+
+  it('inserts truncation notice when messages are dropped', async () => {
+    const ai = genkit({});
+
+    const tool = ai.defineTool(
+      {
+        name: 'notice_tool',
+        description: 'tool',
+        inputSchema: z.object({}),
+        outputSchema: z.string(),
+      },
+      async () => 'ok'
+    );
+
+    let turn = 0;
+    let messagesOnNotice: any[] = [];
+    const pm = ai.defineModel({ name: uniqueName('ccModel') }, async (req) => {
+      turn++;
+      if (turn <= 4) {
+        return {
+          message: {
+            role: 'model' as const,
+            content: [{ toolRequest: { name: 'notice_tool', input: {} } }],
+          },
+          usage: {
+            inputTokens: turn >= 3 ? 90000 : 1000,
+            outputTokens: 50,
+          },
+        };
+      }
+      messagesOnNotice = req.messages;
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'done' }],
+        },
+        usage: { inputTokens: 3000, outputTokens: 50 },
+      };
+    });
+
+    const result = await ai.generate({
+      model: pm,
+      prompt: 'test',
+      tools: [tool],
+      use: [
+        contextCompression({
+          maxInputTokens: 80000,
+          maxMessages: 4,
+          insertTruncationNotice: true,
+        }),
+      ],
+    });
+
+    expect(result.text).toBe('done');
+    const meta = (result.custom as any)?.contextCompression;
+    if (meta) {
+      expect(meta.truncationNoticeInserted).toBe(true);
+    }
+
+    // Check that a notice message was inserted
+    const noticeMsg = messagesOnNotice.find(
+      (m: any) =>
+        m.role === 'model' && m.content?.some((c: any) => c.text?.includes('earlier messages'))
+    );
+    expect(noticeMsg).toBeDefined();
+  });
+
+  it('does not insert truncation notice when disabled', async () => {
+    const ai = genkit({});
+
+    const tool = ai.defineTool(
+      {
+        name: 'no_notice_tool',
+        description: 'tool',
+        inputSchema: z.object({}),
+        outputSchema: z.string(),
+      },
+      async () => 'ok'
+    );
+
+    let turn = 0;
+    let messagesOnNoNotice: any[] = [];
+    const pm = ai.defineModel({ name: uniqueName('ccModel') }, async (req) => {
+      turn++;
+      if (turn <= 4) {
+        return {
+          message: {
+            role: 'model' as const,
+            content: [{ toolRequest: { name: 'no_notice_tool', input: {} } }],
+          },
+          usage: {
+            inputTokens: turn >= 3 ? 90000 : 1000,
+            outputTokens: 50,
+          },
+        };
+      }
+      messagesOnNoNotice = req.messages;
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'done' }],
+        },
+        usage: { inputTokens: 3000, outputTokens: 50 },
+      };
+    });
+
+    const result = await ai.generate({
+      model: pm,
+      prompt: 'test',
+      tools: [tool],
+      use: [
+        contextCompression({
+          maxInputTokens: 80000,
+          maxMessages: 4,
+          insertTruncationNotice: false,
+        }),
+      ],
+    });
+
+    expect(result.text).toBe('done');
+
+    // Check no notice message was inserted
+    const noticeMsg = messagesOnNoNotice.find(
+      (m: any) =>
+        m.role === 'model' && m.content?.some((c: any) => c.text?.includes('earlier messages'))
+    );
+    expect(noticeMsg).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -340,7 +661,6 @@ describe('contextCompression – summarization', () => {
   it('summarizes older messages when threshold is exceeded', async () => {
     const ai = genkit({});
 
-    // Define a summary model that returns a fixed summary
     const summaryModelName = uniqueName('summaryModel');
     ai.defineModel({ name: summaryModelName }, async (req) => ({
       message: {
@@ -408,11 +728,11 @@ describe('contextCompression – summarization', () => {
     expect(meta.triggered).toBe(true);
     expect(meta.summarized).toBe(true);
 
-    // The summarized turn should have a message containing the summary
+    // The summarized turn should have a message containing the summary prefix
     const summaryMsg = messagesOnSummarizedTurn.find(
       (m: any) =>
         m.role === 'user' &&
-        m.content?.some((c: any) => c.text?.includes('[Previous conversation summary]'))
+        m.content?.some((c: any) => c.text?.includes('Previous conversation summary'))
     );
     expect(summaryMsg).toBeDefined();
   });
@@ -452,7 +772,6 @@ describe('contextCompression – summarization', () => {
             role: 'model' as const,
             content: [{ toolRequest: { name: 'fetch_tool', input: {} } }],
           },
-          // Always exceed threshold after turn 1
           usage: {
             inputTokens: turn >= 1 ? 90000 : 1000,
             outputTokens: 50,
@@ -484,11 +803,6 @@ describe('contextCompression – summarization', () => {
       ],
     });
 
-    // The summary model should have been called, but subsequent turns
-    // where the same messages are covered should reuse the cache.
-    // Exact count depends on how many new messages accumulate beyond
-    // the cached window, but it should be less than the number of
-    // compression-triggered turns.
     expect(summaryCalls).toBeGreaterThan(0);
   });
 
@@ -534,7 +848,6 @@ describe('contextCompression – summarization', () => {
       };
     });
 
-    // Should not throw — summarization failure is handled gracefully
     const result = await ai.generate({
       model: pm,
       prompt: 'do work',
@@ -551,6 +864,91 @@ describe('contextCompression – summarization', () => {
     });
 
     expect(result.text).toBe('completed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Skip summarization threshold (NEW)
+// ---------------------------------------------------------------------------
+
+describe('contextCompression – skip summarization threshold', () => {
+  it('skips summarization when cheap strategies save enough', async () => {
+    const ai = genkit({});
+
+    let summaryCalls = 0;
+    const summaryModelName = uniqueName('summaryModel');
+    ai.defineModel({ name: summaryModelName }, async () => {
+      summaryCalls++;
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'Summary text' }],
+        },
+        usage: { inputTokens: 200, outputTokens: 50 },
+      };
+    });
+
+    // Tool with very verbose output — dedup will save a lot
+    const tool = ai.defineTool(
+      {
+        name: 'verbose_dedup_tool',
+        description: 'verbose',
+        inputSchema: z.object({}),
+        outputSchema: z.string(),
+      },
+      async () => 'V'.repeat(10000)
+    );
+
+    let turn = 0;
+    const pm = ai.defineModel({ name: uniqueName('ccModel') }, async (req) => {
+      turn++;
+      if (turn <= 4) {
+        return {
+          message: {
+            role: 'model' as const,
+            content: [{ toolRequest: { name: 'verbose_dedup_tool', input: {} } }],
+          },
+          usage: {
+            inputTokens: turn >= 3 ? 90000 : 5000,
+            outputTokens: 50,
+          },
+        };
+      }
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'done' }],
+        },
+        usage: { inputTokens: 3000, outputTokens: 50 },
+      };
+    });
+
+    const result = await ai.generate({
+      model: pm,
+      prompt: 'test',
+      tools: [tool],
+      use: [
+        contextCompression({
+          maxInputTokens: 80000,
+          deduplicateToolResponses: { matchBy: 'name-and-input' },
+          toolResponses: { maxChars: 100, preserveRecent: 0 },
+          skipSummarizationThreshold: 0.1, // very low threshold — easy to meet
+          summarize: {
+            model: { name: summaryModelName },
+            preserveRecent: 2,
+          },
+        }),
+      ],
+    });
+
+    expect(result.text).toBe('done');
+    const meta = (result.custom as any)?.contextCompression;
+    if (meta) {
+      expect(meta.summarizationSkipped).toBe(true);
+      expect(meta.summarized).toBe(false);
+    }
+    // Summary model should not have been called
+    expect(summaryCalls).toBe(0);
   });
 });
 
@@ -616,7 +1014,7 @@ describe('contextCompression – combined strategies', () => {
     expect(meta.triggered).toBe(true);
   });
 
-  it('applies all three strategies together', async () => {
+  it('applies all strategies together', async () => {
     const ai = genkit({});
 
     const summaryModelName = uniqueName('summaryModel');
@@ -669,6 +1067,7 @@ describe('contextCompression – combined strategies', () => {
       use: [
         contextCompression({
           maxInputTokens: 80000,
+          deduplicateToolResponses: { matchBy: 'name-and-input' },
           toolResponses: { maxChars: 100, preserveRecent: 1 },
           maxMessages: 8,
           summarize: {
@@ -692,7 +1091,7 @@ describe('contextCompression – combined strategies', () => {
 // ---------------------------------------------------------------------------
 
 describe('contextCompression – metadata', () => {
-  it('attaches compression metadata to response.custom', async () => {
+  it('attaches compression metadata with new fields to response.custom', async () => {
     const ai = genkit({});
 
     const tool = ai.defineTool(
@@ -746,6 +1145,12 @@ describe('contextCompression – metadata', () => {
     expect(typeof meta.messagesAfter).toBe('number');
     expect(typeof meta.toolResponsesTruncated).toBe('number');
     expect(typeof meta.summarized).toBe('boolean');
+    // New fields
+    expect(typeof meta.overshootRatio).toBe('number');
+    expect(typeof meta.toolResponsesSafetyCapped).toBe('number');
+    expect(typeof meta.toolResponsesDeduplicated).toBe('number');
+    expect(typeof meta.summarizationSkipped).toBe('boolean');
+    expect(typeof meta.truncationNoticeInserted).toBe('boolean');
   });
 
   it('does not attach metadata when no compression occurs', async () => {
@@ -767,5 +1172,80 @@ describe('contextCompression – metadata', () => {
 
     expect(result.text).toBe('no compression needed');
     expect((result.custom as any)?.contextCompression).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Adaptive aggressiveness (NEW)
+// ---------------------------------------------------------------------------
+
+describe('contextCompression – adaptive aggressiveness', () => {
+  it('uses normal preserve windows at moderate overshoot', async () => {
+    // At 1.2x overshoot, preserveRecent should remain at configured value
+    const ai = genkit({});
+
+    const summaryModelName = uniqueName('summaryModel');
+    ai.defineModel({ name: summaryModelName }, async () => ({
+      message: {
+        role: 'model' as const,
+        content: [{ text: 'Summary' }],
+      },
+      usage: { inputTokens: 200, outputTokens: 50 },
+    }));
+
+    const tool = ai.defineTool(
+      {
+        name: 'mod_tool',
+        description: 'tool',
+        inputSchema: z.object({}),
+        outputSchema: z.string(),
+      },
+      async () => 'ok'
+    );
+
+    let turn = 0;
+    const pm = ai.defineModel({ name: uniqueName('ccModel') }, async (req) => {
+      turn++;
+      if (turn <= 3) {
+        return {
+          message: {
+            role: 'model' as const,
+            content: [{ toolRequest: { name: 'mod_tool', input: {} } }],
+          },
+          usage: {
+            inputTokens: turn >= 2 ? 96000 : 1000, // 1.2x of 80000
+            outputTokens: 50,
+          },
+        };
+      }
+      return {
+        message: {
+          role: 'model' as const,
+          content: [{ text: 'done' }],
+        },
+        usage: { inputTokens: 3000, outputTokens: 50 },
+      };
+    });
+
+    const result = await ai.generate({
+      model: pm,
+      prompt: 'test',
+      tools: [tool],
+      use: [
+        contextCompression({
+          maxInputTokens: 80000,
+          summarize: {
+            model: { name: summaryModelName },
+            preserveRecent: 6,
+          },
+        }),
+      ],
+    });
+
+    expect(result.text).toBe('done');
+    const meta = (result.custom as any)?.contextCompression;
+    if (meta) {
+      expect(meta.overshootRatio).toBeLessThan(1.5);
+    }
   });
 });

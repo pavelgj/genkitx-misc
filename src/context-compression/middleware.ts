@@ -38,6 +38,36 @@ const ToolResponsesConfigSchema = z.object({
     .describe("Don't truncate the last N tool responses. Default: 2."),
 });
 
+const DeduplicateToolResponsesConfigSchema = z.object({
+  /**
+   * How to determine if two tool responses are "the same":
+   * - 'name-and-input': Match on tool name + JSON-serialized input (default)
+   * - 'name-only': Match on tool name only (useful for tools that always return latest state)
+   */
+  matchBy: z
+    .enum(['name-and-input', 'name-only'])
+    .optional()
+    .describe('How to match duplicate tool calls. Default: name-and-input.'),
+
+  /**
+   * Number of most recent occurrences of each unique tool call to keep.
+   * @default 1
+   */
+  keepRecent: z
+    .number()
+    .optional()
+    .describe('Keep the N most recent responses for each unique tool call. Default: 1.'),
+
+  /**
+   * Custom notice to replace deduplicated responses with.
+   * If not provided, uses a default notice.
+   */
+  notice: z
+    .string()
+    .optional()
+    .describe('Custom replacement notice for deduplicated tool responses.'),
+});
+
 const SummarizeConfigSchema = z.object({
   /**
    * Model to use for summarization. A model reference with name and
@@ -88,6 +118,26 @@ export const ContextCompressionConfigSchema = z
     preserveSystem: z.boolean().optional().describe('Always keep system messages. Default: true.'),
 
     /**
+     * Hard cap on individual tool response size in characters.
+     * Applied regardless of other toolResponses config as a safety net.
+     * Set to `Infinity` to disable.
+     * @default 400000
+     */
+    maxToolResponseChars: z
+      .number()
+      .optional()
+      .describe('Hard cap on any single tool response size. Default: 400000 chars.'),
+
+    /**
+     * Deduplicate repeated tool responses, keeping only the most recent.
+     * When the same tool is called multiple times with the same input,
+     * older responses are replaced with a short notice.
+     */
+    deduplicateToolResponses: DeduplicateToolResponsesConfigSchema.optional().describe(
+      'Replace duplicate tool responses with a short notice, keeping only the most recent.'
+    ),
+
+    /**
      * Truncate tool response content that exceeds a character limit.
      * This is a cheap strategy that requires no LLM call.
      */
@@ -109,6 +159,37 @@ export const ContextCompressionConfigSchema = z
      * The summary replaces the original messages, preserving recent context.
      */
     summarize: SummarizeConfigSchema.optional().describe('Summarize older messages using an LLM.'),
+
+    /**
+     * If cheap strategies (deduplication + tool truncation) reduce estimated
+     * context by at least this fraction, skip the LLM summarization step.
+     * Set to `0` to always summarize when configured.
+     * @default undefined (always summarize when configured)
+     */
+    skipSummarizationThreshold: z
+      .number()
+      .optional()
+      .describe(
+        'Skip summarization if cheap strategies save at least this fraction of context. E.g. 0.3 = 30%.'
+      ),
+
+    /**
+     * Insert a notice message when messages are dropped during message
+     * truncation, so the model knows context was removed.
+     * @default true
+     */
+    insertTruncationNotice: z
+      .boolean()
+      .optional()
+      .describe('Insert a notice when messages are dropped. Default: true.'),
+
+    /**
+     * Custom truncation notice text. Used when messages are dropped.
+     */
+    truncationNotice: z
+      .string()
+      .optional()
+      .describe('Custom notice text for when messages are dropped.'),
   })
   .passthrough();
 
@@ -120,9 +201,41 @@ export type ContextCompressionConfig = z.infer<typeof ContextCompressionConfigSc
 
 const DEFAULT_TOOL_RESPONSE_PRESERVE_RECENT = 2;
 const DEFAULT_SUMMARIZE_PRESERVE_RECENT = 6;
-const DEFAULT_SUMMARIZE_PROMPT = `Summarize the following conversation between a user, an AI assistant, and tool calls/responses. Preserve all important facts, decisions, data retrieved from tools, and the current state of the task. Be concise but do not lose critical information.
+const DEFAULT_MAX_TOOL_RESPONSE_CHARS = 400_000;
+const DEFAULT_DEDUP_KEEP_RECENT = 1;
+const DEFAULT_DEDUP_NOTICE =
+  '[Deduplicated: This tool response has been removed to save context. ' +
+  'A more recent response from the same tool call exists later in the conversation.]';
+const DEFAULT_TRUNCATION_NOTICE =
+  '[NOTE] Some earlier messages in this conversation have been removed to stay within ' +
+  'context limits. The most recent messages are preserved. Pay close attention to the ' +
+  'latest messages and any conversation summary above.';
+const SUMMARY_PREFIX =
+  '[Previous conversation summary — This session continues from a prior conversation ' +
+  'that was compressed to save context. The summary below captures all important details:]';
+const DEFAULT_SUMMARIZE_PROMPT = `You are summarizing a conversation between a user, an AI assistant, and tool calls/responses. Create a comprehensive summary that preserves all information needed to continue the task seamlessly.
 
-Conversation:
+Before providing your summary, analyze the conversation chronologically in a <thinking> block to ensure completeness.
+
+Your summary MUST include the following sections:
+
+1. **Primary Request and Intent**: The user's original request and any modifications to it.
+2. **Key Decisions and Facts**: Important decisions made, facts established, and data retrieved from tools.
+3. **Tool Interactions**: Summary of tool calls made, their results, and any notable outputs. Include specific data values that were retrieved.
+4. **Task Evolution**: If the task changed during the conversation, document the progression:
+   - Original task
+   - Modifications (with context for why)
+   - Current active task
+5. **Current State**: What was being worked on immediately before this summary. Include specifics (names, values, identifiers).
+6. **Pending Work**: Any remaining tasks or next steps that were discussed but not completed.
+
+Important guidelines:
+- Preserve ALL specific data values, names, identifiers, and configuration details
+- Include relevant direct quotes from tool responses that contain critical data
+- Be thorough — information not in this summary will be permanently lost
+- Do NOT include pleasantries or meta-commentary about the summarization process
+
+Conversation to summarize:
 {conversation}
 
 Summary:`;
@@ -160,6 +273,50 @@ function truncateString(s: string, maxChars: number): string {
   return s.slice(0, maxChars) + '…[truncated]';
 }
 
+/**
+ * Estimate the total character count across all message content.
+ */
+function estimateMessageChars(messages: MessageData[]): number {
+  return messages.reduce(
+    (sum, m) =>
+      sum +
+      m.content.reduce((pSum, p) => {
+        if (p.text) return pSum + p.text.length;
+        if (p.toolRequest) return pSum + JSON.stringify(p.toolRequest).length;
+        if (p.toolResponse) return pSum + JSON.stringify(p.toolResponse).length;
+        return pSum;
+      }, 0),
+    0
+  );
+}
+
+/**
+ * Adjust preserve windows based on how far over budget we are.
+ * Inspired by Cline's half/quarter heuristic.
+ */
+function adjustForOvershoot(
+  overshootRatio: number,
+  preserveRecent: number,
+  summaryPreserveRecent: number
+): { adjustedPreserveRecent: number; adjustedSummaryPreserveRecent: number } {
+  if (overshootRatio >= 2.0) {
+    return {
+      adjustedPreserveRecent: Math.min(preserveRecent, 2),
+      adjustedSummaryPreserveRecent: Math.min(summaryPreserveRecent, 2),
+    };
+  }
+  if (overshootRatio >= 1.5) {
+    return {
+      adjustedPreserveRecent: Math.max(2, Math.floor(preserveRecent / 2)),
+      adjustedSummaryPreserveRecent: Math.max(2, Math.floor(summaryPreserveRecent / 2)),
+    };
+  }
+  return {
+    adjustedPreserveRecent: preserveRecent,
+    adjustedSummaryPreserveRecent: summaryPreserveRecent,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -172,9 +329,12 @@ function truncateString(s: string, maxChars: number): string {
  * model response — no custom token counter needed. When triggered, the
  * middleware applies configured strategies in order:
  *
- * 1. **Tool response truncation** — Trim verbose tool outputs (cheapest).
- * 2. **Message truncation** — Drop oldest messages beyond a cap.
- * 3. **Summarization** — Replace old messages with an LLM-generated summary.
+ * 1. **Safety cap** — Hard-truncate any single oversized tool response.
+ * 2. **Deduplication** — Replace duplicate tool responses with a short notice.
+ * 3. **Tool response truncation** — Trim verbose tool outputs (cheapest).
+ * 4. **Message truncation** — Drop oldest messages beyond a cap.
+ * 5. **Summarization** — Replace old messages with an LLM-generated summary
+ *    (skipped if cheap strategies saved enough context).
  *
  * ```ts
  * import { contextCompression } from 'genkitx-misc/context-compression';
@@ -189,6 +349,7 @@ function truncateString(s: string, maxChars: number): string {
  *   tools: [searchTool],
  *   use: [contextCompression({
  *     maxInputTokens: 80000,
+ *     deduplicateToolResponses: { matchBy: 'name-and-input' },
  *     toolResponses: { maxChars: 2000 },
  *     summarize: {
  *       model: { name: 'googleai/gemini-flash-lite-latest' },
@@ -203,12 +364,22 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
       name: 'contextCompression',
       description:
         'Compresses conversation context when it grows too large, using ' +
-        'tool response truncation, message dropping, and optional LLM summarization.',
+        'tool response deduplication, truncation, message dropping, and optional LLM summarization.',
       configSchema: ContextCompressionConfigSchema,
     },
     ({ config, ai }) => {
       const maxInputTokens = config?.maxInputTokens ?? Infinity;
       const preserveSystem = config?.preserveSystem !== false;
+      const basePreserveRecent = config?.preserveRecent ?? 4;
+
+      // Safety cap config
+      const maxToolResponseChars = config?.maxToolResponseChars ?? DEFAULT_MAX_TOOL_RESPONSE_CHARS;
+
+      // Deduplication config
+      const dedupConfig = config?.deduplicateToolResponses;
+      const dedupMatchBy = dedupConfig?.matchBy ?? 'name-and-input';
+      const dedupKeepRecent = dedupConfig?.keepRecent ?? DEFAULT_DEDUP_KEEP_RECENT;
+      const dedupNotice = dedupConfig?.notice ?? DEFAULT_DEDUP_NOTICE;
 
       // Tool response config
       const toolResponseConfig = config?.toolResponses;
@@ -219,21 +390,22 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
       // Message truncation
       const maxMessages = config?.maxMessages;
 
+      // Truncation notice config
+      const insertTruncationNotice = config?.insertTruncationNotice !== false;
+      const truncationNoticeText = config?.truncationNotice ?? DEFAULT_TRUNCATION_NOTICE;
+
+      // Skip summarization threshold
+      const skipSummarizationThreshold = config?.skipSummarizationThreshold;
+
       // Summarization config
       const summarizeConfig = config?.summarize;
-      const summaryPreserveRecent =
+      const baseSummaryPreserveRecent =
         summarizeConfig?.preserveRecent ?? DEFAULT_SUMMARIZE_PRESERVE_RECENT;
       const summaryPromptTemplate = summarizeConfig?.prompt ?? DEFAULT_SUMMARIZE_PROMPT;
       const summaryModelRef = summarizeConfig?.model;
 
       // -----------------------------------------------------------------------
       // Closure state — persists across turns within one ai.generate() call.
-      //
-      // IMPORTANT: The generate hook is called RECURSIVELY (each turn's hook
-      // runs inside the previous turn's `next()`). Therefore we track token
-      // usage in the MODEL hook, which runs BEFORE the recursive generate hook
-      // call for the next turn. This ensures `lastInputTokens` is available
-      // when the next turn's generate hook checks whether to compress.
       // -----------------------------------------------------------------------
 
       /** Updated by the model hook after each model call. */
@@ -254,7 +426,112 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
       // -----------------------------------------------------------------------
 
       /**
-       * Strategy 1: Truncate tool response content.
+       * Strategy 0: Safety cap — hard-truncate any single oversized tool response.
+       */
+      function applyToolResponseSafetyCap(messages: MessageData[]): {
+        messages: MessageData[];
+        capped: number;
+      } {
+        if (maxToolResponseChars === Infinity) return { messages, capped: 0 };
+
+        let cappedCount = 0;
+        const result = messages.map((msg) => {
+          if (msg.role !== 'tool') return msg;
+
+          let changed = false;
+          const newContent = msg.content.map((part): Part => {
+            if (part.toolResponse) {
+              const outputStr = JSON.stringify(part.toolResponse.output ?? '');
+              if (outputStr.length > maxToolResponseChars) {
+                cappedCount++;
+                changed = true;
+                return {
+                  toolResponse: {
+                    ...part.toolResponse,
+                    output:
+                      outputStr.slice(0, maxToolResponseChars) +
+                      `\n\n---\n\n[TRUNCATED: Response was ${outputStr.length} chars ` +
+                      `but only first ${maxToolResponseChars} are shown.]`,
+                  },
+                };
+              }
+            }
+            return part;
+          });
+          return changed ? { ...msg, content: newContent } : msg;
+        });
+
+        return { messages: result, capped: cappedCount };
+      }
+
+      /**
+       * Strategy 1: Deduplicate tool responses.
+       * Groups tool responses by key and replaces all but the most recent
+       * with a deduplication notice.
+       */
+      function applyToolResponseDeduplication(messages: MessageData[]): {
+        messages: MessageData[];
+        deduplicated: number;
+      } {
+        if (!dedupConfig) return { messages, deduplicated: 0 };
+
+        // Collect tool response indices grouped by dedup key
+        const groups = new Map<string, number[]>();
+        for (let i = 0; i < messages.length; i++) {
+          const msg = messages[i];
+          if (msg.role !== 'tool') continue;
+
+          for (const part of msg.content) {
+            if (!part.toolResponse) continue;
+            const key =
+              dedupMatchBy === 'name-only'
+                ? part.toolResponse.name
+                : JSON.stringify({
+                    name: part.toolResponse.name,
+                    input: part.toolResponse.ref,
+                  });
+
+            const group = groups.get(key) || [];
+            group.push(i);
+            groups.set(key, group);
+          }
+        }
+
+        // Determine which indices to deduplicate
+        const indicesToDedup = new Set<number>();
+        for (const [, indices] of groups) {
+          if (indices.length <= dedupKeepRecent) continue;
+          // Keep the last `dedupKeepRecent` indices, dedup the rest
+          const toDedup = indices.slice(0, indices.length - dedupKeepRecent);
+          for (const idx of toDedup) {
+            indicesToDedup.add(idx);
+          }
+        }
+
+        if (indicesToDedup.size === 0) return { messages, deduplicated: 0 };
+
+        const result = messages.map((msg, idx) => {
+          if (!indicesToDedup.has(idx)) return msg;
+
+          const newContent = msg.content.map((part): Part => {
+            if (part.toolResponse) {
+              return {
+                toolResponse: {
+                  ...part.toolResponse,
+                  output: dedupNotice,
+                },
+              };
+            }
+            return part;
+          });
+          return { ...msg, content: newContent };
+        });
+
+        return { messages: result, deduplicated: indicesToDedup.size };
+      }
+
+      /**
+       * Strategy 2: Truncate tool response content.
        * Returns a new messages array with tool responses truncated.
        */
       function applyToolResponseTruncation(messages: MessageData[]): {
@@ -304,11 +581,18 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
       }
 
       /**
-       * Strategy 2: Drop oldest messages beyond maxMessages.
+       * Strategy 3: Drop oldest messages beyond maxMessages.
        * Preserves system messages and recent messages.
+       * Optionally inserts a truncation notice at the boundary.
        */
-      function applyMessageTruncation(messages: MessageData[]): MessageData[] {
-        if (!maxMessages || messages.length <= maxMessages) return messages;
+      function applyMessageTruncation(
+        messages: MessageData[],
+        effectiveMaxMessages?: number
+      ): { messages: MessageData[]; dropped: number; noticeInserted: boolean } {
+        const cap = effectiveMaxMessages ?? maxMessages;
+        if (!cap || messages.length <= cap) {
+          return { messages, dropped: 0, noticeInserted: false };
+        }
 
         // Separate system messages (always kept)
         const systemMessages: MessageData[] = [];
@@ -323,20 +607,38 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
         }
 
         // Keep the most recent N non-system messages
-        const keepCount = Math.max(0, maxMessages - systemMessages.length);
+        const keepCount = Math.max(0, cap - systemMessages.length);
         const kept = nonSystemMessages.slice(-keepCount);
+        const dropped = nonSystemMessages.length - kept.length;
 
-        return [...systemMessages, ...kept];
+        let noticeInserted = false;
+        if (dropped > 0 && insertTruncationNotice) {
+          const notice: MessageData = {
+            role: 'model',
+            content: [{ text: truncationNoticeText }],
+          };
+          noticeInserted = true;
+          return {
+            messages: [...systemMessages, notice, ...kept],
+            dropped,
+            noticeInserted,
+          };
+        }
+
+        return { messages: [...systemMessages, ...kept], dropped, noticeInserted };
       }
 
       /**
-       * Strategy 3: Summarize older messages using an LLM.
+       * Strategy 4: Summarize older messages using an LLM.
        * Replaces messages before `preserveRecent` with a summary.
        */
       async function applySummarization(
-        messages: MessageData[]
+        messages: MessageData[],
+        effectiveSummaryPreserveRecent?: number
       ): Promise<{ messages: MessageData[]; summarized: boolean }> {
         if (!summaryModelRef) return { messages, summarized: false };
+
+        const summaryPreserveRecent = effectiveSummaryPreserveRecent ?? baseSummaryPreserveRecent;
 
         // Separate system messages
         const systemMessages: MessageData[] = [];
@@ -362,23 +664,14 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
         const toKeep = nonSystemMessages.slice(-summaryPreserveRecent);
 
         // Check if we already have a cached summary covering these messages.
-        // After compression restructures messages, summarizedUpToIndex is
-        // relative to the post-compression context (1 = the summary message).
-        // A cache hit means toSummarize contains only the cached summary
-        // message itself — no new messages have shifted into the window.
         if (cachedSummary && summarizedUpToIndex >= toSummarize.length) {
-          // Reuse cached summary — no new LLM call needed
           const summaryMessage: MessageData = {
             role: 'user',
-            content: [
-              {
-                text: `[Previous conversation summary]\n${cachedSummary}`,
-              },
-            ],
+            content: [{ text: `${SUMMARY_PREFIX}\n${cachedSummary}` }],
           };
           return {
             messages: [...systemMessages, summaryMessage, ...toKeep],
-            summarized: true, // summarization was applied (from cache)
+            summarized: true,
           };
         }
 
@@ -396,18 +689,11 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
             prompt,
           });
           cachedSummary = response.text;
-          // After compression, messages are restructured: the summary message
-          // replaces all old messages. Set to 1 so subsequent turns detect
-          // when new messages shift into the toSummarize window.
           summarizedUpToIndex = 1;
 
           const summaryMessage: MessageData = {
             role: 'user',
-            content: [
-              {
-                text: `[Previous conversation summary]\n${cachedSummary}`,
-              },
-            ],
+            content: [{ text: `${SUMMARY_PREFIX}\n${cachedSummary}` }],
           };
 
           return {
@@ -415,7 +701,6 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
             summarized: true,
           };
         } catch (e) {
-          // If summarization fails, warn and proceed without it
           console.warn(
             `[contextCompression] Summarization failed, proceeding without compression: ${
               e instanceof Error ? e.message : String(e)
@@ -431,24 +716,13 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
 
       return {
         // --- Model hook: track token usage & attach compression metadata ---
-        //
-        // The model hook runs for each model call, BEFORE the framework
-        // resolves tool requests and recursively calls the generate hook for
-        // the next turn. This makes it the right place to:
-        //   (a) Record inputTokens so the next turn's generate hook knows
-        //       whether to compress.
-        //   (b) Attach compression metadata to the model response's `custom`
-        //       field, which the framework preserves through to the final
-        //       GenerateResponse.
         model: async (req, ctx, next) => {
           const result = await next(req, ctx);
 
-          // (a) Track token usage for the next turn's compression decision
           if (result.usage?.inputTokens !== undefined) {
             lastInputTokens = result.usage.inputTokens;
           }
 
-          // (b) Attach pending compression metadata from the generate hook
           if (pendingCompressionMeta) {
             const meta = pendingCompressionMeta;
             pendingCompressionMeta = null;
@@ -469,23 +743,54 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
           const messages = envelope.request.messages || [];
           const { currentTurn } = envelope;
 
-          // Determine if compression should trigger.
-          // `lastInputTokens` is set by the model hook after each model call,
-          // so it reflects the PREVIOUS turn's usage.
           const shouldCompress = lastInputTokens !== undefined && lastInputTokens > maxInputTokens;
 
           if (!shouldCompress || currentTurn === 0) {
-            // Pass through — the model hook will track usage
             return next(envelope, ctx);
           }
 
+          // Compute overshoot ratio for adaptive aggressiveness
+          const overshootRatio = lastInputTokens! / maxInputTokens;
+          const { adjustedPreserveRecent, adjustedSummaryPreserveRecent } = adjustForOvershoot(
+            overshootRatio,
+            basePreserveRecent,
+            baseSummaryPreserveRecent
+          );
+
           // Apply compression strategies in order
           let compressedMessages = [...messages];
+          let toolResponsesSafetyCapped = 0;
+          let toolResponsesDeduplicated = 0;
           let toolResponsesTruncated = 0;
           let summarized = false;
+          let summarizationSkipped = false;
+          let truncationNoticeInserted = false;
           const originalCount = messages.length;
+          const charsBefore = estimateMessageChars(messages);
 
-          // 1. Tool response truncation
+          // 1. Safety cap on oversized tool responses
+          if (maxToolResponseChars !== Infinity) {
+            const capResult = await ai.run(
+              'contextCompression-applyToolResponseSafetyCap',
+              compressedMessages,
+              async () => applyToolResponseSafetyCap(compressedMessages)
+            );
+            compressedMessages = capResult.messages;
+            toolResponsesSafetyCapped = capResult.capped;
+          }
+
+          // 2. Deduplicate tool responses
+          if (dedupConfig) {
+            const dedupResult = await ai.run(
+              'contextCompression-applyToolResponseDeduplication',
+              compressedMessages,
+              async () => applyToolResponseDeduplication(compressedMessages)
+            );
+            compressedMessages = dedupResult.messages;
+            toolResponsesDeduplicated = dedupResult.deduplicated;
+          }
+
+          // 3. Tool response truncation
           if (toolMaxChars) {
             const truncResult = await ai.run(
               'contextCompression-applyToolResponseTruncation',
@@ -496,29 +801,53 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
             toolResponsesTruncated = truncResult.truncated;
           }
 
-          // 2. Message truncation
-          if (maxMessages) {
-            compressedMessages = await ai.run(
+          // 4. Check if cheap strategies saved enough to skip summarization
+          const charsAfterCheap = estimateMessageChars(compressedMessages);
+          const charsSaved = charsBefore - charsAfterCheap;
+          const savingsRatio = charsBefore > 0 ? charsSaved / charsBefore : 0;
+
+          const shouldSkipSummarization =
+            skipSummarizationThreshold !== undefined && savingsRatio >= skipSummarizationThreshold;
+
+          // 5. Message truncation (use adjustedPreserveRecent to compute effective cap)
+          const effectiveMaxMessages = maxMessages
+            ? Math.max(
+                adjustedPreserveRecent + 1,
+                maxMessages - (basePreserveRecent - adjustedPreserveRecent)
+              )
+            : undefined;
+          if (effectiveMaxMessages) {
+            const truncResult = await ai.run(
               'contextCompression-applyMessageTruncation',
               compressedMessages,
-              async () => applyMessageTruncation(compressedMessages)
+              async () => applyMessageTruncation(compressedMessages, effectiveMaxMessages)
             );
+            compressedMessages = truncResult.messages;
+            truncationNoticeInserted = truncResult.noticeInserted;
           }
 
-          // 3. Summarization
+          // 6. Summarization (unless skipped)
           if (summaryModelRef) {
-            const sumResult = await ai.run(
-              'contextCompression-applySummarization',
-              compressedMessages,
-              () => applySummarization(compressedMessages)
-            );
-            compressedMessages = sumResult.messages;
-            summarized = sumResult.summarized;
+            if (shouldSkipSummarization) {
+              summarizationSkipped = true;
+            } else {
+              const sumResult = await ai.run(
+                'contextCompression-applySummarization',
+                compressedMessages,
+                () => applySummarization(compressedMessages, adjustedSummaryPreserveRecent)
+              );
+              compressedMessages = sumResult.messages;
+              summarized = sumResult.summarized;
+            }
           }
 
           const compressedCount = compressedMessages.length;
           const wasCompressed =
-            toolResponsesTruncated > 0 || compressedCount < originalCount || summarized;
+            toolResponsesSafetyCapped > 0 ||
+            toolResponsesDeduplicated > 0 ||
+            toolResponsesTruncated > 0 ||
+            compressedCount < originalCount ||
+            summarized;
 
           // Set pending metadata for the model hook to attach
           if (wasCompressed) {
@@ -526,10 +855,15 @@ export const contextCompression: GenerateMiddleware<typeof ContextCompressionCon
               contextCompression: {
                 triggered: true,
                 inputTokensBefore: lastInputTokens,
+                overshootRatio: Math.round(overshootRatio * 100) / 100,
                 messagesOriginal: originalCount,
                 messagesAfter: compressedCount,
+                toolResponsesSafetyCapped,
+                toolResponsesDeduplicated,
                 toolResponsesTruncated,
                 summarized,
+                summarizationSkipped,
+                truncationNoticeInserted,
               },
             };
           }
